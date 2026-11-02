@@ -1,0 +1,19 @@
+---
+import Base from '../layouts/Base.astro';
+import { content } from '../i18n/content';
+const { lang } = Astro.props;
+const t = content[lang as 'en' | 'ar'];
+const p = lang === 'ar' ? '/ar' : '';
+---
+<Base lang={lang} path={`${p}/legal`} altPath={lang === 'ar' ? '/legal' : '/ar/legal'} title={`${t.legal.title} | ElSafQa`} description={t.legal.note}>
+  <article class="mx-auto max-w-3xl px-5 py-16">
+    <h1 class="text-4xl font-extrabold">{t.legal.title}</h1>
+    <p class="mt-3 text-sm text-mute">{t.legal.note}</p>
+    {t.legal.sections.map((s) => (
+      <section class="mt-10">
+        <h2 class="text-2xl font-bold text-gold">{s.h}</h2>
+        {s.p.map((x) => <p class="mt-3 text-ivory/85">{x}</p>)}
+      </section>
+    ))}
+  </article>
+</Base>

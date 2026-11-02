@@ -1,0 +1,73 @@
+---
+import '../styles/global.css';
+import '@fontsource-variable/cairo';
+import '@fontsource/saira/600.css';
+import '@fontsource/saira/800.css';
+import { content } from '../i18n/content';
+import { TELEGRAM_URL, SITE_NAME } from '../config';
+
+const { lang, path, altPath, title, description } = Astro.props;
+const t = content[lang as 'en' | 'ar'];
+const p = lang === 'ar' ? '/ar' : '';
+const abs = (x: string) => new URL(x, Astro.site).href;
+const enPath = lang === 'en' ? path : altPath;
+const arPath = lang === 'ar' ? path : altPath;
+const ld = { '@context': 'https://schema.org', '@type': 'Organization', name: SITE_NAME, url: abs('/'), logo: abs('/images/icon-256.png'), sameAs: [TELEGRAM_URL] };
+---
+<!doctype html>
+<html lang={lang} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title}</title>
+  <meta name="description" content={description} />
+  <meta name="theme-color" content="#000000" />
+  <link rel="canonical" href={abs(path)} />
+  <link rel="alternate" hreflang="en" href={abs(enPath)} />
+  <link rel="alternate" hreflang="ar" href={abs(arPath)} />
+  <link rel="alternate" hreflang="x-default" href={abs(enPath)} />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/images/apple-touch-icon.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content={SITE_NAME} />
+  <meta property="og:title" content={title} />
+  <meta property="og:description" content={description} />
+  <meta property="og:url" content={abs(path)} />
+  <meta property="og:image" content={abs('/images/og-image.jpg')} />
+  <meta name="twitter:card" content="summary_large_image" />
+  <script type="application/ld+json" set:html={JSON.stringify(ld)} />
+</head>
+<body>
+  <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:start-2 focus:z-50 focus:bg-gold focus:text-ink focus:px-4 focus:py-2">Skip to content</a>
+  <header class="sticky top-0 z-40 border-b border-edge bg-ink/90 backdrop-blur">
+    <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3">
+      <a href={`${p}/`} aria-label={SITE_NAME}><img src="/images/wordmark.webp" alt={SITE_NAME} width="800" height="216" class="h-9 w-auto" /></a>
+      <nav class="hidden items-center gap-7 text-sm md:flex" aria-label="Main">
+        <a class="hover:text-gold" href={`${p}/#about`}>{t.nav.about}</a>
+        <a class="hover:text-gold" href={`${p}/#how`}>{t.nav.how}</a>
+        <a class="hover:text-gold" href={`${p}/#channel`}>{t.nav.channel}</a>
+        <a class="hover:text-gold" href={`${p}/#faq`}>{t.nav.faq}</a>
+        <a class="hover:text-gold" href={`${p}/#contact`}>{t.nav.contact}</a>
+      </nav>
+      <div class="flex items-center gap-4">
+        <a href={altPath} hreflang={lang === 'ar' ? 'en' : 'ar'} class="text-sm font-semibold text-gold hover:text-ivory">{t.langName}</a>
+        <a href={TELEGRAM_URL} rel="noopener noreferrer" class="btn btn-gold hidden !py-2 sm:inline-block">{t.join}</a>
+      </div>
+    </div>
+  </header>
+  <main id="main"><slot /></main>
+  <footer class="border-t border-edge bg-coal">
+    <div class="mx-auto grid max-w-6xl gap-8 px-5 py-12 md:grid-cols-[auto_1fr] md:gap-16">
+      <img src="/images/emblem-480.webp" alt="" width="480" height="480" loading="lazy" class="h-24 w-24" />
+      <div class="space-y-4 text-sm text-mute">
+        <p class="max-w-3xl">{t.footer.disclaimer}</p>
+        <p class="flex flex-wrap gap-x-6 gap-y-2">
+          <a class="text-gold hover:text-ivory" href={`${p}/legal`}>{t.footer.legal}</a>
+          <a class="text-gold hover:text-ivory" href={TELEGRAM_URL} rel="noopener noreferrer">Telegram</a>
+        </p>
+        <p>&copy; {new Date().getFullYear()} {SITE_NAME}. {t.footer.rights}</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
