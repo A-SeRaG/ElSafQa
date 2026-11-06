@@ -15,7 +15,7 @@ form?.addEventListener('submit', async (e) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: fd.get('name'), handle: fd.get('handle'), message: fd.get('message'),
+        name: fd.get('name'), email: fd.get('email'), message: fd.get('message'), lang: form.dataset.lang,
         website: fd.get('website'), token: fd.get('cf-turnstile-response'),
       }),
     });

@@ -38,6 +38,7 @@ elsafqa-landing/
    │  └─ Legal.astro         Risk / privacy / terms page
    ├─ pages/                 index, legal  (+ ar/index, ar/legal)
    ├─ scripts/contact.ts     Form submit logic
+   ├─ scripts/gold.ts        Live price + trend widget logic
    └─ styles/global.css      Brand tokens + shared component styles
 ```
 
@@ -76,9 +77,13 @@ The slanted button shape is a deliberate nod to the italic "E" in the logo.
 - "Join the free channel" button (opens Telegram).
 - "Skip to content" link for keyboard users.
 
-### 4.2 Hero
-- Headline "Think smart. Trade wise." (taken from the banner tagline), supporting line, two buttons and a short risk note.
-- The emblem is the focal point, with a gold glow and a single entrance animation on load (disabled for users who prefer reduced motion).
+### 4.2 Hero: live gold price
+- **Left:** headline, supporting line, buttons, then the **live gold price** in large type (XAU/USD, USD per ounce) and, below it in smaller type, the **general trend** (Rising / Falling / Sideways).
+- **Right:** the emblem. This physical layout (text left, logo right) is kept in both English and Arabic.
+- The price flashes green or red on each change, shows a Live / Connecting / Not connected / Market closed status, and dims if no tick arrives for 30 seconds.
+- **How the trend is defined:** current price versus the price about one hour earlier. Within +-0.05% it shows "Sideways". For the first hour after the relay starts it shows "Collecting data...". Tune `TREND_WINDOW_MS` and `FLAT_BAND_PCT` in `worker/src/index.js`.
+- The price is labelled indicative, not an execution price, and not advice.
+- The browser never talks to the data provider. It connects to **your own relay** (section 15), so the API key stays secret.
 
 ### 4.3 About
 Three principles: gold focus, risk first, open community.
@@ -86,8 +91,8 @@ Three principles: gold focus, risk first, open community.
 ### 4.4 How it works
 A real three-step sequence (join, read the idea, decide yourself), so it is numbered.
 
-### 4.5 Channel
-The Scalp Channel banner, a short description and the Telegram button.
+### 4.5 Channel and channels grid
+The Scalp Channel banner, then a grid of **4 channel slots**: slot 1 is the Scalp Channel (active). Slots 2 to 4 show a dashed "Coming soon" placeholder. To activate one, set `PUBLIC_CHANNEL_2_URL` (or `_3_`, `_4_`) and edit its name and description in `src/i18n/content.ts` (`channels.items`). No code change needed.
 
 ### 4.6 Risk strip
 A highlighted warning with a red edge. Always visible on the page, not only in the footer.
@@ -96,9 +101,11 @@ A highlighted warning with a red edge. Always visible on the page, not only in t
 Accessible accordion built with native `<details>` (works with no JavaScript).
 
 ### 4.8 Contact form
-- Fields: name, email or Telegram username, message.
+- Fields: name, email, message. Next to the form there is a direct link to the Telegram support account `@TEAM_ElSafQa` (`SUPPORT_TELEGRAM` in `src/config.ts`).
 - Protections: Cloudflare Turnstile, hidden honeypot field, length limits, same-origin check, server-side validation.
-- Messages are forwarded to a private Telegram chat through a bot (nothing is stored in a database).
+- Each message is emailed to `support@elsafqa.com` through [Resend](https://resend.com), with Reply-To set to the visitor, so you answer by simply replying. Nothing is stored in a database.
+- The visitor automatically receives a thank-you email from "ElSafQa TEAM" (English or Arabic, matching the page) with a copy of their message.
+- Optional: if `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set, each message is also posted to a Telegram chat.
 - Live status messages in the user's language (sending, success, error).
 
 ### 4.9 Footer
@@ -146,8 +153,11 @@ Risk disclosure, privacy and terms of use. **This is draft text. Have a lawyer r
 | `PUBLIC_TELEGRAM_URL` | build-time | Your channel link (all Telegram buttons) |
 | `PUBLIC_TURNSTILE_SITEKEY` | build-time | Turnstile site key |
 | `TURNSTILE_SECRET` | secret | Turnstile server key |
-| `TELEGRAM_BOT_TOKEN` | secret | Bot that receives contact messages |
-| `TELEGRAM_CHAT_ID` | secret | Chat that receives them |
+| `RESEND_API_KEY` | secret | Resend API key used to send contact emails |
+| `SUPPORT_EMAIL` | optional | Inbox that receives messages (default `support@elsafqa.com`) |
+| `MAIL_FROM` | optional | Sender of both emails (default `ElSafQa TEAM <support@elsafqa.com>`) |
+| `TELEGRAM_BOT_TOKEN` | optional secret | Also post each message to Telegram |
+| `TELEGRAM_CHAT_ID` | optional secret | Chat for those Telegram posts |
 
 Secrets go in **Cloudflare Pages > Settings > Variables and Secrets**. Never commit them.
 
@@ -173,7 +183,9 @@ Skip link, semantic landmarks and heading order, visible gold focus ring, labell
 ## 13. Before you launch (checklist)
 - [ ] Set the real Telegram channel link (the default `t.me/elsafqa` is a placeholder).
 - [ ] Create a Turnstile widget and set the keys (the default site key is Cloudflare's test key).
-- [ ] Create the Telegram bot and chat for contact messages.
+- [ ] Create a Resend account, add and verify the domain `elsafqa.com` (Resend shows the DNS records to add in Cloudflare), create an API key and set it as `RESEND_API_KEY`.
+- [ ] Make sure `support@elsafqa.com` is a real inbox that receives mail (for example Cloudflare Email Routing forwarding to your Gmail).
+- [ ] Send a test message from the live site and check both the support email and the auto-reply (including the spam folder).
 - [ ] Replace `https://elsafqa.com` with your real domain.
 - [ ] **Verify the copy.** I wrote it from your brand material and assumed what the channel posts (entry, stop-loss, targets), that it is free, and that you do not manage accounts or take deposits. Edit anything that is not true in `content.ts`.
 - [ ] Have a lawyer review `/legal`.
@@ -184,3 +196,25 @@ Skip link, semantic landmarks and heading order, visible gold focus ring, labell
 - **Blog or education pages:** add files under `src/pages` (Astro content collections work well).
 - **Live gold price widget:** fetch through a Pages Function and add its domain to `connect-src` in `_headers`.
 - **Analytics:** add a deferred script and allow its host in `script-src` and `connect-src`.
+
+## 15. Live gold relay (Cloudflare Worker + Durable Object)
+
+Folder `worker/`. One upstream WebSocket to AllTick feeds all visitors, so you pay for one connection however many people are on the site.
+
+1. **Plan:** you need a plan with real-time ticks (AllTick's Free plan lists only "latest price" and "close data"). Check their pricing and terms for public display.
+2. **Test the feed first:** `ALLTICK_TOKEN=xxx node scripts/test-gold.mjs` (Node 22+). The symbol is `GOLD`, not `XAUUSD`.
+3. **Deploy the relay:**
+   ```bash
+   cd worker && npm install
+   npx wrangler login
+   npx wrangler secret put ALLTICK_TOKEN
+   npx wrangler deploy
+   ```
+   Edit `wrangler.toml` first: the route (`gold.elsafqa.com`) and `ALLOWED_ORIGIN` (your site origin). Only that origin may connect.
+4. **Point the site at it:** set `PUBLIC_GOLD_WS_URL=wss://gold.elsafqa.com/stream` and redeploy the site. The CSP already allows `wss://gold.elsafqa.com` (change it in `public/_headers` if you use another host).
+5. **Local preview without a relay:** `npm run dev` shows a clearly labelled **DEMO DATA** random walk. Demo mode is not included in production builds.
+
+Notes:
+- Check Cloudflare's current pricing for Durable Objects before launch.
+- The relay stores one price sample per minute (last 24 hours) to compute the trend.
+- The relay and widget were **not tested against the live AllTick feed**. Test with a real token before launch.

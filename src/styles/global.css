@@ -9,6 +9,7 @@
   --color-ivory: #f3ead6;
   --color-mute: #aaa18c;
   --color-signal: #e5232a;
+  --color-up: #2ecc71;
   --font-display: 'Saira', 'Cairo Variable', sans-serif;
   --font-body: 'Cairo Variable', system-ui, sans-serif;
 }
@@ -37,3 +38,8 @@ details > summary::-webkit-details-marker { display: none; }
 details[open] > summary .plus { transform: rotate(45deg); }
 
 .hero-glow { background: radial-gradient(60% 70% at 78% 45%, rgba(245,184,28,.10), transparent 70%); }
+#gold-price { transition: color .35s; }
+#gold-price.tick-up { color: var(--color-up); }
+#gold-price.tick-down { color: var(--color-signal); }
+#gold-price.stale { opacity: .5; }
+@media (prefers-reduced-motion: reduce) { #gold-price { transition: none; } }
