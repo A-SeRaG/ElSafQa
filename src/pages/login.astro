@@ -1,5 +1,6 @@
 ---
-// Private finance app. Everything sensitive is enforced server-side in functions/api/admin/[[path]].js;
+// Team sign-in: the admin gets the full finance app, staff get only their own Staff view.
+// Everything is enforced server-side in lib/admin-core.js (run by api/admin.js);
 // this page only holds the empty shell and loads nothing until the session cookie is valid.
 import '../styles/global.css';
 import '@fontsource-variable/cairo';
@@ -12,7 +13,7 @@ import { SITE_NAME } from '../config';
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Admin | {SITE_NAME}</title>
+  <title>Sign in | {SITE_NAME}</title>
   <meta name="robots" content="noindex, nofollow, noarchive" />
   <meta name="theme-color" content="#000000" />
   <link rel="icon" type="image/png" href="/favicon.png" />
@@ -23,8 +24,8 @@ import { SITE_NAME } from '../config';
     <form id="login-form" class="w-full max-w-sm space-y-5 border border-edge bg-coal p-8" novalidate>
       <img src="/images/emblem-480.webp" alt="" width="480" height="480" class="mx-auto h-20 w-20" />
       <div class="text-center">
-        <h1 class="text-2xl font-extrabold text-gold">Admin sign in</h1>
-        <p class="mt-1 text-sm text-mute">{SITE_NAME} finance. Authorised staff only.</p>
+        <h1 class="text-2xl font-extrabold text-gold">Sign in</h1>
+        <p class="mt-1 text-sm text-mute">{SITE_NAME} team. Authorised staff only.</p>
       </div>
       <div>
         <label for="email" class="mb-1 block text-sm text-mute">Email</label>
@@ -145,7 +146,7 @@ import { SITE_NAME } from '../config';
       <!-- 3. Staff -->
       <section id="panel-staff" role="tabpanel" aria-labelledby="tab-staff" hidden>
         <div class="flex flex-wrap items-end justify-between gap-4">
-          <h2 class="text-xl font-semibold">Staff</h2>
+          <h2 id="staff-heading" class="text-xl font-semibold">Staff</h2>
           <div>
             <label for="staff-month" class="mb-1 block text-sm text-mute">Month</label>
             <input class="field" id="staff-month" type="month" required />
@@ -160,6 +161,9 @@ import { SITE_NAME } from '../config';
           <div><label for="s-title" class="mb-1 block text-sm text-mute">Job title</label><input class="field" id="s-title" name="title" required maxlength="80" /></div>
           <div><label for="s-salary" class="mb-1 block text-sm text-mute">Monthly salary</label><input class="field" id="s-salary" name="salary" type="number" min="0" step="0.01" required inputmode="decimal" /></div>
           <div><label for="s-start" class="mb-1 block text-sm text-mute">Start date (optional)</label><input class="field" id="s-start" name="startDate" type="date" /></div>
+          <div><label for="s-email" class="mb-1 block text-sm text-mute">Sign-in email (optional)</label><input class="field" id="s-email" name="email" type="email" maxlength="200" autocomplete="off" /></div>
+          <div><label for="s-pass" class="mb-1 block text-sm text-mute">Sign-in password (min. 8 characters)</label><input class="field" id="s-pass" name="password" type="password" minlength="8" maxlength="200" autocomplete="new-password" /></div>
+          <p class="text-sm text-mute sm:col-span-2">With an email and password, the employee can sign in on this page and sees only their own card, where they record their deals.</p>
           <button type="submit" class="btn btn-gold sm:col-span-2">Add employee</button>
         </form>
       </section>

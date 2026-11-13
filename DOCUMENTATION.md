@@ -185,7 +185,7 @@ Skip link, semantic landmarks and heading order, visible gold focus ring, labell
 - **Live gold price widget:** fetch through a Pages Function and add its domain to `connect-src` in `_headers`.
 - **Analytics:** add a deferred script and allow its host in `script-src` and `connect-src`.
 
-## 15. Admin finance app (`/admins`)
+## 15. Team app (`/login`): admin finance app and staff view
 
 A private page for the company's finances. It is not linked from the site, is excluded from the sitemap, and is served with `noindex` and `no-store`.
 
@@ -193,18 +193,30 @@ A private page for the company's finances. It is not linked from the site, is ex
 
 | File | Role |
 |---|---|
-| `src/pages/admins.astro` | Sign-in screen and the app shell (4 tabs) |
+| `src/pages/login.astro` | Sign-in screen and the app shell (4 tabs) |
 | `src/scripts/admin.ts` | Browser logic (renders data with `textContent` only) |
 | `lib/admin-core.js` | The whole backend logic: sign-in, session, transactions, staff, clients, login alert |
 | `api/admin.js` | Vercel Function that connects to Supabase Postgres and runs the backend |
-| `vercel.json` | Routes `/api/admin/*` to that function and sets the `/admins` security headers |
+| `vercel.json` | Routes `/api/admin/*` to that function and sets the `/login` security headers (and redirects the old `/admins` address to `/login`) |
 
 **Tabs**
 
 1. **Summary**: company capital (opening capital + all money in − all money out), then this month's expenses, revenue and profit on a smaller line, then a "Capital over time" line chart (capital at the end of each day, hover or touch for the exact value), then the transaction history (newest first, delete with a second confirming click). "Settings" sets the opening capital and the currency code (default `USD`).
 2. **New transaction**: in or out, amount, date and time, what it is for, optional note.
-3. **Staff**: add employees with a job title, monthly salary and start date. Each card shows, for the selected month: targets achieved %, followed instructions %, bonus, deduction, an evaluation note and the net pay. A staff member whose name is set as the trader on one or more clients also gets a trading block: how many of those clients are live, the total they manage, the clients' profit / loss, and a "Client profit / loss over time" chart. "Record salary payment" writes the net pay as an "out" transaction, once per employee per month.
+3. **Staff**: add employees with a job title, monthly salary and start date. Each card shows, for the selected month: targets achieved %, followed instructions %, bonus, deduction, an evaluation note and the net pay. Each card also has a **Deals** block: every deal with what it earned or lost, the running total, and a "Deals profit / loss over time" chart. A staff member whose name is set as the trader on one or more clients additionally shows how many of those clients are live and the total they manage. "Record salary payment" writes the net pay as an "out" transaction, once per employee per month.
 4. **Clients**: add clients with a contact, an assigned trader and an optional first deposit. Each card shows the client's wallet (net deposits + trading profit − trading loss), the trader with a Live / Paused status you can switch, and the client's history of deposits, withdrawals, profits and losses. Each card also has a "Wallet over time" chart. Client wallets are client money: they are tracked separately and do **not** change the company capital.
+
+**Accounts and roles**
+
+| Account | Signs in with | Sees |
+|---|---|---|
+| Admin | `ADMIN_EMAIL` + `ADMIN_PASSWORD` (environment variables) | All four tabs |
+| Staff | The sign-in email and password the admin sets on their employee card | Only the Staff tab, with only their own card |
+
+- A staff member can **read** their own card (targets, bonus, deduction, whether the salary was paid) and **add deals** (deal name, earning or loss, amount, date, note). They cannot edit or delete anything, and cannot see other staff, clients, transactions or the company summary. The server refuses those requests; hiding the tabs is only cosmetic.
+- The admin gives an employee a sign-in in *Add employee* or under *Edit details or sign-in* on the card. An empty email removes the sign-in and signs that person out. Staff passwords are stored only as salted PBKDF2 hashes.
+- Deals are a performance record. They do not change the company capital or any client wallet.
+- **Test staff account:** set the environment variable `TEST_STAFF_PASSWORD` in Vercel and redeploy. The account `staff.test@elsafqa.com` ("Test Staff") then exists with that password. Remove the variable and redeploy to switch its sign-in off.
 
 **Security model**
 
@@ -231,6 +243,7 @@ A private page for the company's finances. It is not linked from the site, is ex
 | `RESEND_API_KEY` | API key from resend.com, used to send the sign-in alert email |
 | `MAIL_FROM` | Optional sender, default `ElSafQa Admin <admin@elsafqa.com>`. The domain must be verified in Resend |
 | `ALERT_EMAIL_TO` | Optional recipient of the alert, defaults to `ADMIN_EMAIL` |
+| `TEST_STAFF_PASSWORD` | Optional. Enables the test staff account `staff.test@elsafqa.com` with this password |
 
 3. Redeploy. Until `DATABASE_URL`, `ADMIN_PASSWORD` and `SESSION_SECRET` exist, the page shows "backend is not configured".
 
@@ -241,5 +254,5 @@ Without `RESEND_API_KEY`, the alert falls back to Telegram if `TELEGRAM_BOT_TOKE
 ```bash
 npm i -g vercel
 vercel env pull .env.local     # or create .env.local with the variables above
-vercel dev                     # open http://localhost:3000/admins
+vercel dev                     # open http://localhost:3000/login
 ```

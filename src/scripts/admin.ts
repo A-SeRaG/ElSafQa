@@ -1,10 +1,14 @@
-// Client for the /admins finance app. All user data is written with textContent (never innerHTML).
+// Client for the /login app (admin finance app + staff view). All user data is written with textContent (never innerHTML).
 type Tx = { id: number; kind: 'in' | 'out'; amount: number; at: string; purpose: string; note: string };
 type Staff = {
   id: number; name: string; title: string; salary: number; startDate: string;
   targetPct: number; instructionsPct: number; bonus: number; deduction: number; note: string; net: number; paidAt: string | null;
-  trading: { clients: number; live: number; managed: number; pnl: number; points: { day: string; value: number }[] } | null;
+  email: string; hasLogin: boolean;
+  trading: { clients: number; live: number; managed: number } | null;
+  deals: { count: number; pnl: number; points: { day: string; value: number }[]; items: Deal[] };
 };
+type Deal = { id: number; title: string; amount: number; at: string; note: string };
+let role: 'admin' | 'staff' = 'admin';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const loginView = $('#login-view'), appView = $('#app-view'), appStatus = $('#app-status');
@@ -19,6 +23,9 @@ const ERRORS: Record<string, string> = {
   already_paid: 'This salary is already recorded as paid for that month.',
   nothing_to_pay: 'Net pay for this month is zero.',
   network: 'Network error. Check your connection and try again.',
+  email_taken: 'That sign-in email is already used by another account.',
+  weak_password: 'A sign-in password needs an email and at least 8 characters.',
+  forbidden: 'Your account is not allowed to do that.',
 };
 const explain = (code: string) => ERRORS[code] ?? 'Something went wrong. Please try again.';
 
@@ -74,11 +81,16 @@ function confirmClick(btn: HTMLButtonElement, action: () => void) {
 
 /* ---------- views ---------- */
 function showLogin() { appView.hidden = true; loginView.hidden = false; $<HTMLInputElement>('#email').focus(); }
-async function showApp() {
+async function showApp(as: 'admin' | 'staff') {
+  role = as;
   loginView.hidden = true; appView.hidden = false;
   $<HTMLInputElement>('#at').value = localInput(new Date());
   $<HTMLInputElement>('#staff-month').value = thisMonth();
-  await refreshSummary();
+  // Staff see a single tab (their own card). The server refuses everything else for them anyway.
+  for (const t of tabs) t.hidden = as === 'staff' && t.dataset.tab !== 'staff';
+  $('#staff-form').hidden = as === 'staff';
+  $('#staff-heading').textContent = as === 'staff' ? 'My work' : 'Staff';
+  openTab(as === 'staff' ? 'staff' : 'summary');
 }
 
 const tabs = [...document.querySelectorAll<HTMLButtonElement>('.tab')];
@@ -256,43 +268,114 @@ function staffCard(s: Staff, month: string) {
   actions.append(remove);
 
   const edit = h('details', 'border-t border-edge pt-4 text-sm');
-  edit.append(h('summary', 'text-mute hover:text-ivory', 'Edit name, job title or salary'));
+  edit.append(h('summary', 'text-mute hover:text-ivory', `Edit details or sign-in (${s.hasLogin ? s.email : 'no sign-in yet'})`));
   const ef = h('form', 'mt-3 grid grid-cols-2 gap-3');
-  const text = (label: string, name: string, value: string) => {
+  const text = (label: string, name: string, value: string, type = 'text') => {
     const w = h('label', 'block text-sm text-mute', label);
-    const i = h('input', 'field mt-1'); i.name = name; i.required = true; i.maxLength = 80; i.value = value;
+    const i = h('input', 'field mt-1'); i.name = name; i.type = type; i.required = type === 'text'; i.maxLength = type === 'text' ? 80 : 200; i.value = value;
+    if (type === 'password') { i.minLength = 8; i.autocomplete = 'new-password'; }
     w.append(i); return w;
   };
-  const efSave = h('button', 'btn btn-line !py-2 self-end', 'Save');
+  const efSave = h('button', 'btn btn-line col-span-2 !py-2', 'Save');
   efSave.type = 'submit';
-  ef.append(text('Name', 'name', s.name), text('Job title', 'title', s.title), numField('Monthly salary', 'salary', s.salary), efSave);
+  ef.append(text('Name', 'name', s.name), text('Job title', 'title', s.title), numField('Monthly salary', 'salary', s.salary),
+    text('Sign-in email (empty = no sign-in)', 'email', s.email, 'email'), text(s.hasLogin ? 'New password (empty = keep)' : 'Sign-in password', 'password', '', 'password'), efSave);
   ef.addEventListener('submit', (e) => {
     e.preventDefault();
     if (!ef.reportValidity()) return;
     const fd = new FormData(ef);
-    run(() => api(`staff/${s.id}`, 'PUT', { name: fd.get('name'), title: fd.get('title'), salary: Number(fd.get('salary')), startDate: s.startDate }));
+    run(() => api(`staff/${s.id}`, 'PUT', { name: fd.get('name'), title: fd.get('title'), salary: Number(fd.get('salary')), startDate: s.startDate, email: fd.get('email'), password: fd.get('password') }));
   });
   edit.append(ef);
 
   card.append(head, meter('Targets achieved', s.targetPct), meter('Followed instructions', s.instructionsPct));
-  // Trading performance, for staff who are assigned to clients as their trader.
+  // Clients this person trades for (admin view only).
   if (s.trading) {
     const t = s.trading;
     const line = h('div', 'flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-edge pt-4 text-sm text-mute');
     const managing = h('span', '', 'Managing '); managing.append(h('b', 'font-semibold text-ivory tabular-nums', fmt(t.managed)));
-    const result = h('span', '', 'Client profit / loss '); result.append(h('b', `font-semibold tabular-nums ${t.pnl > 0 ? 'pos' : t.pnl < 0 ? 'neg' : 'text-ivory'}`, signed(t.pnl)));
     line.append(h('span', `badge ${t.live ? 'badge-live' : ''}`, t.live ? `Live on ${t.live} of ${t.clients}` : 'Paused'),
-      h('span', '', `${t.clients} client${t.clients === 1 ? '' : 's'}`), managing, result);
-    card.append(line, chartBlock('Client profit / loss over time', toSeries(t.points), { zero: true, signed: true }));
+      h('span', '', `${t.clients} client${t.clients === 1 ? '' : 's'}`), managing);
+    card.append(line);
+  }
+  card.append(...dealsBlock(s, run));
+  if (role === 'staff') {
+    // Read-only evaluation for the staff member.
+    const info = h('div', 'space-y-1 border-t border-edge pt-4 text-sm text-mute');
+    info.append(h('p', '', `Bonus ${fmt(s.bonus)} \u00b7 Deduction ${fmt(s.deduction)}`), h('p', '', s.paidAt ? `Salary paid ${fmtDate(s.paidAt)}` : 'Salary for this month not recorded as paid yet'));
+    if (s.note) info.append(h('p', 'text-ivory', s.note));
+    card.append(info, status);
+    return card;
   }
   card.append(review, actions, edit, status);
   return card;
 }
 
+// Deals: what the person traded and what each deal earned or lost.
+const openDeals = new Set<number>();
+function dealsBlock(s: Staff, run: (fn: () => Promise<unknown>) => Promise<void>) {
+  const d = s.deals;
+  const line = h('div', 'flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-edge pt-4 text-sm text-mute');
+  const total = h('span', '', 'Deals profit / loss '); total.append(h('b', `font-semibold tabular-nums ${d.pnl > 0 ? 'pos' : d.pnl < 0 ? 'neg' : 'text-ivory'}`, signed(d.pnl)));
+  line.append(h('span', '', `${d.count} deal${d.count === 1 ? '' : 's'}`), total);
+
+  const box = h('details', 'border-t border-edge pt-4 text-sm');
+  box.append(h('summary', 'font-semibold text-gold hover:text-ivory', role === 'staff' ? 'Add a deal' : 'Deals: add or review'));
+  box.open = role === 'staff' || openDeals.has(s.id);
+  box.addEventListener('toggle', () => { if (box.open) openDeals.add(s.id); else openDeals.delete(s.id); });
+
+  const f = h('form', 'mt-3 grid grid-cols-2 gap-3');
+  const titleWrap = h('label', 'col-span-2 block text-sm text-mute', 'Deal');
+  const title = h('input', 'field mt-1'); title.name = 'title'; title.required = true; title.maxLength = 120; title.placeholder = 'e.g. XAUUSD buy';
+  titleWrap.append(title);
+  const resWrap = h('label', 'block text-sm text-mute', 'Result');
+  const res = h('select', 'field mt-1'); res.name = 'result';
+  for (const [v, label] of [['profit', 'Earning'], ['loss', 'Loss']]) { const o = h('option', '', label); o.value = v; res.append(o); }
+  resWrap.append(res);
+  const amount = numField('Amount', 'amount', 0);
+  const amountInput = amount.querySelector('input')!; amountInput.value = ''; amountInput.min = '0.01';
+  const atWrap = h('label', 'block text-sm text-mute', 'Date and time');
+  const at = h('input', 'field mt-1'); at.type = 'datetime-local'; at.name = 'at'; at.required = true; at.value = localInput(new Date());
+  atWrap.append(at);
+  const noteWrap = h('label', 'block text-sm text-mute', 'Note');
+  const note = h('input', 'field mt-1'); note.name = 'note'; note.maxLength = 500;
+  noteWrap.append(note);
+  const add = h('button', 'btn btn-gold col-span-2 !py-2', 'Save deal'); add.type = 'submit';
+  f.append(titleWrap, resWrap, amount, atWrap, noteWrap, add);
+  f.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!f.reportValidity()) return;
+    const fd = new FormData(f);
+    run(() => api(role === 'staff' ? 'deals' : `staff/${s.id}/deals`, 'POST', {
+      title: fd.get('title'), result: fd.get('result'), amount: Number(fd.get('amount')), at: new Date(String(fd.get('at'))).toISOString(), note: fd.get('note'),
+    }));
+  });
+
+  const list = h('ul', 'mt-4');
+  if (!d.items.length) list.append(h('li', 'py-2 text-mute', 'No deals recorded yet.'));
+  for (const deal of d.items) {
+    const li = h('li', 'flex items-baseline justify-between gap-3 border-t border-edge py-2');
+    const left = h('div');
+    left.append(h('p', 'font-semibold', deal.title), h('p', 'text-xs text-mute', [fmtDate(deal.at), deal.note].filter(Boolean).join(' \u00b7 ')));
+    const right = h('div', 'flex items-baseline gap-3 whitespace-nowrap');
+    right.append(h('span', `font-semibold tabular-nums ${deal.amount > 0 ? 'pos' : 'neg'}`, signed(deal.amount)));
+    if (role === 'admin') {
+      const del = h('button', 'text-xs text-mute hover:text-signal', 'Delete'); del.type = 'button';
+      confirmClick(del, () => run(() => api(`deals/${deal.id}`, 'DELETE')));
+      right.append(del);
+    }
+    li.append(left, right);
+    list.append(li);
+  }
+  box.append(f, list);
+  return [line, chartBlock('Deals profit / loss over time', toSeries(d.points), { zero: true, signed: true }), box];
+}
+
 async function loadStaff() {
   const month = monthInput.value || thisMonth();
   try {
-    const data = await api<{ items: Staff[] }>(`staff?month=${month}`);
+    const data = await api<{ items: Staff[]; currency?: string }>(role === 'staff' ? `me?month=${month}` : `staff?month=${month}`);
+    if (data.currency) currency = data.currency;
     $('#staff-list').replaceChildren(...data.items.map((s) => staffCard(s, month)));
     $('#staff-empty').hidden = data.items.length > 0;
     redrawCharts();
@@ -305,7 +388,7 @@ $<HTMLFormElement>('#staff-form').addEventListener('submit', async (e) => {
   if (!f.reportValidity()) return;
   const fd = new FormData(f);
   try {
-    await api('staff', 'POST', { name: fd.get('name'), title: fd.get('title'), salary: Number(fd.get('salary')), startDate: fd.get('startDate') });
+    await api('staff', 'POST', { name: fd.get('name'), title: fd.get('title'), salary: Number(fd.get('salary')), startDate: fd.get('startDate'), email: fd.get('email'), password: fd.get('password') });
     f.reset();
     await loadStaff();
   } catch (err) { report(err); }
@@ -563,10 +646,10 @@ $<HTMLFormElement>('#login-form').addEventListener('submit', async (e) => {
   btn.disabled = true;
   say(status, 'Signing in…', 'mute');
   try {
-    await api('login', 'POST', { email: fd.get('email'), password: fd.get('password') });
+    const r = await api<{ role: 'admin' | 'staff' }>('login', 'POST', { email: fd.get('email'), password: fd.get('password') });
     f.reset();
     say(status, '');
-    await showApp();
+    await showApp(r.role);
   } catch (err) {
     const code = (err as Error).message;
     say(status, code === 'invalid' ? 'Wrong email or password.' : explain(code));
@@ -576,5 +659,5 @@ $('#logout').addEventListener('click', async () => { await api('logout', 'POST',
 
 // Boot: go straight to the app when a valid session cookie already exists.
 fetch('/api/admin/session', { credentials: 'same-origin' })
-  .then((r) => (r.ok ? showApp() : showLogin()))
+  .then(async (r) => (r.ok ? showApp((await r.json()).role) : showLogin()))
   .catch(showLogin);
