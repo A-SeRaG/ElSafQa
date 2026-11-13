@@ -1,0 +1,166 @@
+---
+// Private finance app. Everything sensitive is enforced server-side in functions/api/admin/[[path]].js;
+// this page only holds the empty shell and loads nothing until the session cookie is valid.
+import '../styles/global.css';
+import '@fontsource-variable/cairo';
+import '@fontsource/saira/600.css';
+import '@fontsource/saira/800.css';
+import { SITE_NAME } from '../config';
+---
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin | {SITE_NAME}</title>
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <meta name="theme-color" content="#000000" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+</head>
+<body class="min-h-screen">
+  <!-- Sign in -->
+  <main id="login-view" class="hero-glow flex min-h-screen items-center justify-center px-5 py-12" hidden>
+    <form id="login-form" class="w-full max-w-sm space-y-5 border border-edge bg-coal p-8" novalidate>
+      <img src="/images/emblem-480.webp" alt="" width="480" height="480" class="mx-auto h-20 w-20" />
+      <div class="text-center">
+        <h1 class="text-2xl font-extrabold text-gold">Admin sign in</h1>
+        <p class="mt-1 text-sm text-mute">{SITE_NAME} finance. Authorised staff only.</p>
+      </div>
+      <div>
+        <label for="email" class="mb-1 block text-sm text-mute">Email</label>
+        <input class="field" id="email" name="email" type="email" required maxlength="200" autocomplete="username" />
+      </div>
+      <div>
+        <label for="password" class="mb-1 block text-sm text-mute">Password</label>
+        <input class="field" id="password" name="password" type="password" required maxlength="500" autocomplete="current-password" />
+      </div>
+      <button type="submit" class="btn btn-gold w-full">Sign in</button>
+      <p id="login-status" class="min-h-5 text-center text-sm text-signal" role="alert"></p>
+    </form>
+  </main>
+
+  <!-- App -->
+  <div id="app-view" hidden>
+    <header class="sticky top-0 z-40 border-b border-edge bg-ink/90 backdrop-blur">
+      <div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-3">
+        <img src="/images/wordmark.webp" alt={SITE_NAME} width="800" height="216" class="h-8 w-auto" />
+        <button id="logout" type="button" class="text-sm font-semibold text-gold hover:text-ivory">Sign out</button>
+      </div>
+      <div class="mx-auto flex max-w-5xl gap-1 px-5" role="tablist" aria-label="Finance sections">
+        <button class="tab" role="tab" id="tab-summary" data-tab="summary" aria-controls="panel-summary" aria-selected="true">Summary</button>
+        <button class="tab" role="tab" id="tab-new" data-tab="new" aria-controls="panel-new" aria-selected="false">New transaction</button>
+        <button class="tab" role="tab" id="tab-staff" data-tab="staff" aria-controls="panel-staff" aria-selected="false">Staff</button>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-5xl px-5 py-8">
+      <p id="app-status" class="mb-4 min-h-5 text-sm text-signal" role="status"></p>
+
+      <!-- 1. Summary -->
+      <section id="panel-summary" role="tabpanel" aria-labelledby="tab-summary">
+        <div class="border border-edge bg-coal p-6 sm:p-8">
+          <div class="flex items-start justify-between gap-4">
+            <p class="text-sm uppercase tracking-widest text-mute">Company capital</p>
+            <button id="settings-toggle" type="button" class="text-sm text-gold hover:text-ivory">Settings</button>
+          </div>
+          <p id="capital" class="mt-2 font-display text-4xl font-extrabold text-gold tabular-nums sm:text-6xl">&ndash;</p>
+          <p class="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-mute">
+            <span>Expenses <b id="m-expenses" class="font-semibold text-ivory tabular-nums">&ndash;</b></span>
+            <span>Revenue <b id="m-revenue" class="font-semibold text-ivory tabular-nums">&ndash;</b></span>
+            <span>Profit <b id="m-profit" class="font-semibold tabular-nums">&ndash;</b></span>
+            <span id="m-label"></span>
+          </p>
+          <form id="settings-form" class="mt-6 grid gap-4 border-t border-edge pt-6 sm:grid-cols-[1fr_8rem_auto] sm:items-end" hidden>
+            <div>
+              <label for="opening" class="mb-1 block text-sm text-mute">Opening capital (before any recorded transaction)</label>
+              <input class="field" id="opening" name="opening" type="number" min="0" step="0.01" required inputmode="decimal" />
+            </div>
+            <div>
+              <label for="currency" class="mb-1 block text-sm text-mute">Currency</label>
+              <input class="field uppercase" id="currency" name="currency" required pattern="[A-Za-z]{3}" maxlength="3" />
+            </div>
+            <button type="submit" class="btn btn-gold">Save</button>
+          </form>
+        </div>
+
+        <h2 class="mt-10 mb-4 text-xl font-semibold">Transaction history</h2>
+        <div class="overflow-x-auto border border-edge">
+          <table class="w-full min-w-[40rem] text-start text-sm">
+            <thead class="bg-coal text-mute">
+              <tr>
+                <th scope="col" class="px-4 py-3 text-start font-semibold">Date</th>
+                <th scope="col" class="px-4 py-3 text-start font-semibold">For</th>
+                <th scope="col" class="px-4 py-3 text-start font-semibold">Note</th>
+                <th scope="col" class="px-4 py-3 text-end font-semibold">Amount</th>
+                <th scope="col" class="px-4 py-3"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="tx-rows"></tbody>
+          </table>
+        </div>
+        <p id="tx-empty" class="mt-4 text-sm text-mute" hidden>No transactions yet. Add the first one in the "New transaction" tab.</p>
+        <button id="tx-more" type="button" class="btn btn-line mt-6" hidden>Load more</button>
+      </section>
+
+      <!-- 2. New transaction -->
+      <section id="panel-new" role="tabpanel" aria-labelledby="tab-new" hidden>
+        <form id="tx-form" class="mx-auto max-w-xl space-y-5 border border-edge bg-coal p-6 sm:p-8">
+          <h2 class="text-xl font-semibold">New transaction</h2>
+          <fieldset>
+            <legend class="mb-2 text-sm text-mute">Direction</legend>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="choice"><input class="sr-only" type="radio" name="kind" value="in" required checked /><span>In (money received)</span></label>
+              <label class="choice"><input class="sr-only" type="radio" name="kind" value="out" required /><span>Out (money paid)</span></label>
+            </div>
+          </fieldset>
+          <div class="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label for="amount" class="mb-1 block text-sm text-mute">Amount</label>
+              <input class="field" id="amount" name="amount" type="number" min="0.01" step="0.01" required inputmode="decimal" />
+            </div>
+            <div>
+              <label for="at" class="mb-1 block text-sm text-mute">Date and time</label>
+              <input class="field" id="at" name="at" type="datetime-local" required />
+            </div>
+          </div>
+          <div>
+            <label for="purpose" class="mb-1 block text-sm text-mute">For what</label>
+            <input class="field" id="purpose" name="purpose" required maxlength="120" placeholder="e.g. VIP subscriptions, ads, tools" />
+          </div>
+          <div>
+            <label for="note" class="mb-1 block text-sm text-mute">Note or description (optional)</label>
+            <textarea class="field" id="note" name="note" rows="3" maxlength="1000"></textarea>
+          </div>
+          <button type="submit" class="btn btn-gold w-full">Save transaction</button>
+          <p id="tx-status" class="min-h-5 text-sm" role="status"></p>
+        </form>
+      </section>
+
+      <!-- 3. Staff -->
+      <section id="panel-staff" role="tabpanel" aria-labelledby="tab-staff" hidden>
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <h2 class="text-xl font-semibold">Staff</h2>
+          <div>
+            <label for="staff-month" class="mb-1 block text-sm text-mute">Month</label>
+            <input class="field" id="staff-month" type="month" required />
+          </div>
+        </div>
+        <div id="staff-list" class="mt-6 grid gap-5 md:grid-cols-2"></div>
+        <p id="staff-empty" class="mt-6 text-sm text-mute" hidden>No employees yet. Add the first one below.</p>
+
+        <form id="staff-form" class="mt-10 grid gap-5 border border-edge bg-coal p-6 sm:grid-cols-2 sm:p-8">
+          <h3 class="text-lg font-semibold sm:col-span-2">Add employee</h3>
+          <div><label for="s-name" class="mb-1 block text-sm text-mute">Name</label><input class="field" id="s-name" name="name" required maxlength="80" /></div>
+          <div><label for="s-title" class="mb-1 block text-sm text-mute">Job title</label><input class="field" id="s-title" name="title" required maxlength="80" /></div>
+          <div><label for="s-salary" class="mb-1 block text-sm text-mute">Monthly salary</label><input class="field" id="s-salary" name="salary" type="number" min="0" step="0.01" required inputmode="decimal" /></div>
+          <div><label for="s-start" class="mb-1 block text-sm text-mute">Start date (optional)</label><input class="field" id="s-start" name="startDate" type="date" /></div>
+          <button type="submit" class="btn btn-gold sm:col-span-2">Add employee</button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <noscript><p class="p-8 text-center">This page needs JavaScript.</p></noscript>
+  <script>import '../scripts/admin';</script>
+</body>
+</html>

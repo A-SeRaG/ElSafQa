@@ -184,3 +184,56 @@ Skip link, semantic landmarks and heading order, visible gold focus ring, labell
 - **Blog or education pages:** add files under `src/pages` (Astro content collections work well).
 - **Live gold price widget:** fetch through a Pages Function and add its domain to `connect-src` in `_headers`.
 - **Analytics:** add a deferred script and allow its host in `script-src` and `connect-src`.
+
+## 15. Admin finance app (`/admins`)
+
+A private page for the company's finances. It is not linked from the site, is excluded from the sitemap, and is served with `noindex` and `no-store`.
+
+**Files**
+
+| File | Role |
+|---|---|
+| `src/pages/admins.astro` | Sign-in screen and the app shell (3 tabs) |
+| `src/scripts/admin.ts` | Browser logic (renders data with `textContent` only) |
+| `functions/api/admin/[[path]].js` | The whole backend: sign-in, session, transactions, staff, login alert |
+
+**Tabs**
+
+1. **Summary**: company capital (opening capital + all money in − all money out), then this month's expenses, revenue and profit on a smaller line, then the transaction history (newest first, delete with a second confirming click). "Settings" sets the opening capital and the currency code (default `USD`).
+2. **New transaction**: in or out, amount, date and time, what it is for, optional note.
+3. **Staff**: add employees with a job title, monthly salary and start date. Each card shows, for the selected month: targets achieved %, followed instructions %, bonus, deduction, an evaluation note and the net pay. "Record salary payment" writes the net pay as an "out" transaction, once per employee per month.
+
+**Security model**
+
+- The email and password are **never in the repository or in the browser code**. They are checked server-side against Cloudflare secrets, in constant time.
+- Sign-in sets an HMAC-signed session cookie: `__Host-` prefix, `HttpOnly`, `Secure`, `SameSite=Strict`, 8 hours.
+- 5 failed sign-ins from one IP lock that IP out for 15 minutes.
+- Every state-changing request must carry this site's `Origin` (CSRF protection). All SQL uses bound parameters.
+- Each successful sign-in sends an alert (time, IP, location, device) to the admin mailbox.
+
+**One-time setup (Cloudflare dashboard)**
+
+1. *Storage & Databases → D1 → Create database* (e.g. `elsafqa-admin`). Tables are created automatically on first use.
+2. *Pages project → Settings → Bindings → Add → D1 database*: variable name **`DB`**, pick that database.
+3. *Pages project → Settings → Variables and Secrets*, add as **Secret**:
+
+| Name | Value |
+|---|---|
+| `ADMIN_PASSWORD` | The admin password (required) |
+| `SESSION_SECRET` | A long random string, e.g. output of `openssl rand -hex 32` (required) |
+| `ADMIN_EMAIL` | Sign-in email. Optional, defaults to `support@elsafqa.com` |
+| `RESEND_API_KEY` | API key from resend.com, used to send the sign-in alert email |
+| `MAIL_FROM` | Optional sender, default `ElSafQa Admin <admin@elsafqa.com>`. The domain must be verified in Resend |
+| `ALERT_EMAIL_TO` | Optional recipient of the alert, defaults to `ADMIN_EMAIL` |
+
+4. Redeploy. Until `DB`, `ADMIN_PASSWORD` and `SESSION_SECRET` exist, the page shows "backend is not configured".
+
+Without `RESEND_API_KEY`, the alert falls back to the Telegram bot already used by the contact form. Changing `SESSION_SECRET` signs everyone out immediately.
+
+**Local testing**
+
+```bash
+npm run build
+npx wrangler pages dev dist --d1 DB --binding ADMIN_PASSWORD=test --binding SESSION_SECRET=dev
+# open http://localhost:8788/admins
+```
