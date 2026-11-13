@@ -46,10 +46,11 @@ import { SITE_NAME } from '../config';
         <img src="/images/wordmark.webp" alt={SITE_NAME} width="800" height="216" class="h-8 w-auto" />
         <button id="logout" type="button" class="text-sm font-semibold text-gold hover:text-ivory">Sign out</button>
       </div>
-      <div class="mx-auto flex max-w-5xl gap-1 px-5" role="tablist" aria-label="Finance sections">
+      <div class="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-5" role="tablist" aria-label="Finance sections">
         <button class="tab" role="tab" id="tab-summary" data-tab="summary" aria-controls="panel-summary" aria-selected="true">Summary</button>
         <button class="tab" role="tab" id="tab-new" data-tab="new" aria-controls="panel-new" aria-selected="false">New transaction</button>
         <button class="tab" role="tab" id="tab-staff" data-tab="staff" aria-controls="panel-staff" aria-selected="false">Staff</button>
+        <button class="tab" role="tab" id="tab-clients" data-tab="clients" aria-controls="panel-clients" aria-selected="false">Clients</button>
       </div>
     </header>
 
@@ -70,6 +71,11 @@ import { SITE_NAME } from '../config';
             <span>Profit <b id="m-profit" class="font-semibold tabular-nums">&ndash;</b></span>
             <span id="m-label"></span>
           </p>
+          <div class="mt-6 border-t border-edge pt-6">
+            <h2 class="font-body text-sm uppercase tracking-widest text-mute">Capital over time</h2>
+            <div id="chart" class="relative mt-3" role="img" aria-label="Line chart of company capital at the end of each day"></div>
+            <p id="chart-empty" class="mt-3 text-sm text-mute" hidden>The chart appears once the first transaction is recorded.</p>
+          </div>
           <form id="settings-form" class="mt-6 grid gap-4 border-t border-edge pt-6 sm:grid-cols-[1fr_8rem_auto] sm:items-end" hidden>
             <div>
               <label for="opening" class="mb-1 block text-sm text-mute">Opening capital (before any recorded transaction)</label>
@@ -156,6 +162,27 @@ import { SITE_NAME } from '../config';
           <div><label for="s-start" class="mb-1 block text-sm text-mute">Start date (optional)</label><input class="field" id="s-start" name="startDate" type="date" /></div>
           <button type="submit" class="btn btn-gold sm:col-span-2">Add employee</button>
         </form>
+      </section>
+
+      <!-- 4. Clients -->
+      <section id="panel-clients" role="tabpanel" aria-labelledby="tab-clients" hidden>
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <h2 class="text-xl font-semibold">Clients</h2>
+          <p class="text-sm text-mute">Total in client wallets <b id="clients-total" class="font-semibold text-ivory tabular-nums">&ndash;</b></p>
+        </div>
+        <div id="client-list" class="mt-6 grid gap-5 md:grid-cols-2"></div>
+        <p id="client-empty" class="mt-6 text-sm text-mute" hidden>No clients yet. Add the first one below.</p>
+
+        <form id="client-form" class="mt-10 grid gap-5 border border-edge bg-coal p-6 sm:grid-cols-2 sm:p-8">
+          <h3 class="text-lg font-semibold sm:col-span-2">Add client</h3>
+          <div><label for="c-name" class="mb-1 block text-sm text-mute">Name</label><input class="field" id="c-name" name="name" required maxlength="80" /></div>
+          <div><label for="c-contact" class="mb-1 block text-sm text-mute">Contact (Telegram, phone; optional)</label><input class="field" id="c-contact" name="contact" maxlength="120" /></div>
+          <div><label for="c-trader" class="mb-1 block text-sm text-mute">Trader</label><input class="field" id="c-trader" name="trader" maxlength="80" list="trader-names" /></div>
+          <div><label for="c-deposit" class="mb-1 block text-sm text-mute">First deposit (optional)</label><input class="field" id="c-deposit" name="deposit" type="number" min="0" step="0.01" inputmode="decimal" /></div>
+          <label class="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" name="live" class="h-4 w-4 accent-gold" checked /> Trader is live on this account now</label>
+          <button type="submit" class="btn btn-gold sm:col-span-2">Add client</button>
+        </form>
+        <datalist id="trader-names"></datalist>
       </section>
     </main>
   </div>

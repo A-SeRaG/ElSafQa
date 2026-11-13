@@ -39,7 +39,7 @@ details[open] > summary .plus { transform: rotate(45deg); }
 .hero-glow { background: radial-gradient(60% 70% at 78% 45%, rgba(245,184,28,.10), transparent 70%); }
 
 /* ---------- /admins finance app ---------- */
-.tab { padding: .7rem 1rem; font-size: .9rem; font-weight: 600; color: var(--color-mute); border-bottom: 2px solid transparent; }
+.tab { white-space: nowrap; padding: .7rem 1rem; font-size: .9rem; font-weight: 600; color: var(--color-mute); border-bottom: 2px solid transparent; }
 .tab:hover { color: var(--color-ivory); }
 .tab[aria-selected="true"] { color: var(--color-gold); border-bottom-color: var(--color-gold); }
 .choice span { display: block; border: 1px solid var(--color-edge); padding: .75rem 1rem; text-align: center; font-weight: 600; color: var(--color-mute); cursor: pointer; }
@@ -52,3 +52,15 @@ details[open] > summary .plus { transform: rotate(45deg); }
 .meter::-moz-progress-bar { background: var(--color-gold); }
 .pos { color: #5fcf8f; }
 .neg { color: #ff6b6f; }
+.chart-line { fill: none; stroke: var(--color-gold); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-area { fill: var(--color-gold); opacity: .08; }
+.chart-grid { stroke: var(--color-edge); stroke-width: 1; }
+.chart-cross { stroke: var(--color-mute); stroke-width: 1; }
+.chart-dot { fill: var(--color-gold); stroke: var(--color-coal); stroke-width: 2; }
+.chart-text { fill: var(--color-mute); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart-tip { position: absolute; pointer-events: none; white-space: nowrap; background: var(--color-ink); border: 1px solid var(--color-edge); padding: .35rem .6rem; font-size: .8rem; line-height: 1.4; }
+#chart svg { display: block; touch-action: pan-y; }
+.badge { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid var(--color-edge); padding: .1rem .6rem; font-size: .75rem; font-weight: 600; color: var(--color-mute); }
+.badge::before { content: ''; width: .5rem; height: .5rem; border-radius: 50%; background: var(--color-mute); }
+.badge-live { color: #5fcf8f; border-color: #5fcf8f; }
+.badge-live::before { background: #5fcf8f; }

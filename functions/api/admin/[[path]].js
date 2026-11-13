@@ -65,6 +65,15 @@ async function ensureSchema(db) {
       note TEXT NOT NULL DEFAULT '', paid_at TEXT,
       PRIMARY KEY (employee_id, month))`),
     db.prepare(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS clients (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL, contact TEXT NOT NULL DEFAULT '', trader TEXT NOT NULL DEFAULT '',
+      live INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS client_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('deposit','withdrawal','profit','loss')),
+      amount INTEGER NOT NULL CHECK (amount > 0), at TEXT NOT NULL, note TEXT NOT NULL DEFAULT '')`),
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_entries_client ON client_entries (client_id, at)`),
     db.prepare(`CREATE TABLE IF NOT EXISTS login_attempts (ip TEXT NOT NULL, at INTEGER NOT NULL)`),
   ]);
   schemaReady = true;
@@ -174,6 +183,17 @@ async function summary(db, url) {
   });
 }
 
+// Capital at the end of every day that has transactions (running total on top of the opening capital).
+async function progress(db) {
+  const [{ results }, s] = await Promise.all([
+    db.prepare(`SELECT substr(at, 1, 10) AS day, SUM(CASE kind WHEN 'in' THEN amount ELSE -amount END) AS net
+                FROM transactions GROUP BY day ORDER BY day`).all(),
+    getSettings(db),
+  ]);
+  let running = s.opening;
+  return json({ ok: true, opening: money(s.opening), points: results.map((r) => ({ day: r.day, capital: money((running += r.net)) })) });
+}
+
 async function saveSettings(db, b) {
   const opening = cents(b.opening, { allowZero: true });
   const currency = clean(b.currency, 3).toUpperCase();
@@ -259,6 +279,43 @@ async function paySalary(db, id, b) {
   return json({ ok: true });
 }
 
+/* ---------- clients ---------- */
+// A client's wallet is client money, kept apart from the company's own capital.
+async function listClients(db) {
+  const { results } = await db.prepare(
+    `SELECT c.*,
+       COALESCE(SUM(CASE e.kind WHEN 'deposit' THEN e.amount WHEN 'withdrawal' THEN -e.amount ELSE 0 END), 0) AS deposited,
+       COALESCE(SUM(CASE e.kind WHEN 'profit' THEN e.amount WHEN 'loss' THEN -e.amount ELSE 0 END), 0) AS pnl
+     FROM clients c LEFT JOIN client_entries e ON e.client_id = c.id
+     GROUP BY c.id ORDER BY c.name COLLATE NOCASE`).all();
+  return json({
+    ok: true,
+    items: results.map((c) => ({
+      id: c.id, name: c.name, contact: c.contact, trader: c.trader, live: !!c.live,
+      deposited: money(c.deposited), pnl: money(c.pnl), wallet: money(c.deposited + c.pnl),
+    })),
+  });
+}
+
+function clientInput(b) {
+  const name = clean(b.name, 80);
+  return name ? [name, clean(b.contact, 120), clean(b.trader, 80), b.live ? 1 : 0] : null;
+}
+
+async function clientHistory(db, id) {
+  const { results } = await db.prepare('SELECT id, kind, amount, at, note FROM client_entries WHERE client_id = ? ORDER BY at DESC, id DESC LIMIT 500').bind(id).all();
+  return json({ ok: true, items: results.map((e) => ({ ...e, amount: money(e.amount) })) });
+}
+
+async function addEntry(db, id, b) {
+  const kind = ['deposit', 'withdrawal', 'profit', 'loss'].includes(b.kind) ? b.kind : null;
+  const amount = cents(b.amount), at = isoDate(b.at);
+  if (!kind || amount === null || !at) return fail('invalid', 422);
+  if (!(await db.prepare('SELECT id FROM clients WHERE id = ?').bind(id).first())) return fail('not_found', 404);
+  await db.prepare('INSERT INTO client_entries (client_id, kind, amount, at, note) VALUES (?, ?, ?, ?, ?)').bind(id, kind, amount, at, clean(b.note, 500)).run();
+  return json({ ok: true }, 201);
+}
+
 /* ---------- router ---------- */
 export async function onRequest(ctx) {
   const { request, env, params } = ctx;
@@ -289,6 +346,34 @@ export async function onRequest(ctx) {
 
     if (path === 'session' && method === 'GET') return json({ ok: true });
     if (path === 'summary' && method === 'GET') return summary(db, url);
+    if (path === 'progress' && method === 'GET') return progress(db);
+    if (path === 'clients' && method === 'GET') return listClients(db);
+    if (path === 'clients' && method === 'POST') {
+      const v = clientInput(body);
+      if (!v) return fail('invalid', 422);
+      const r = await db.prepare('INSERT INTO clients (name, contact, trader, live, created_at) VALUES (?, ?, ?, ?, ?)').bind(...v, new Date().toISOString()).run();
+      return json({ ok: true, id: r.meta.last_row_id }, 201);
+    }
+    const c = path.match(/^clients\/(\d{1,12})(?:\/(history|entries)(?:\/(\d{1,12}))?)?$/);
+    if (c) {
+      const id = Number(c[1]);
+      if (c[2] === 'history' && !c[3] && method === 'GET') return clientHistory(db, id);
+      if (c[2] === 'entries' && !c[3] && method === 'POST') return addEntry(db, id, body);
+      if (c[2] === 'entries' && c[3] && method === 'DELETE') {
+        await db.prepare('DELETE FROM client_entries WHERE id = ? AND client_id = ?').bind(Number(c[3]), id).run();
+        return json({ ok: true });
+      }
+      if (!c[2] && method === 'PUT') {
+        const v = clientInput(body);
+        if (!v) return fail('invalid', 422);
+        await db.prepare('UPDATE clients SET name = ?, contact = ?, trader = ?, live = ? WHERE id = ?').bind(...v, id).run();
+        return json({ ok: true });
+      }
+      if (!c[2] && method === 'DELETE') {
+        await db.batch([db.prepare('DELETE FROM client_entries WHERE client_id = ?').bind(id), db.prepare('DELETE FROM clients WHERE id = ?').bind(id)]);
+        return json({ ok: true });
+      }
+    }
     if (path === 'settings' && method === 'PUT') return saveSettings(db, body);
     if (path === 'transactions' && method === 'GET') return listTx(db, url);
     if (path === 'transactions' && method === 'POST') return addTx(db, body);

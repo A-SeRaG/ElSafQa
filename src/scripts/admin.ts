@@ -90,6 +90,7 @@ function openTab(name: string) {
   say(appStatus, '');
   if (name === 'summary') refreshSummary();
   if (name === 'staff') loadStaff();
+  if (name === 'clients') loadClients();
 }
 tabs.forEach((t) => t.addEventListener('click', () => openTab(t.dataset.tab!)));
 
@@ -110,6 +111,9 @@ async function refreshSummary() {
     $('#m-label').textContent = `in ${now.toLocaleString('en', { month: 'long', year: 'numeric' })}`;
     $<HTMLInputElement>('#opening').value = String(s.opening);
     $<HTMLInputElement>('#currency').value = s.currency;
+    const p = await api<{ opening: number; points: Point[] }>('progress');
+    chartData = p;
+    drawChart();
     txOffset = 0;
     $('#tx-rows').replaceChildren();
     await loadTx();
@@ -290,6 +294,221 @@ $<HTMLFormElement>('#staff-form').addEventListener('submit', async (e) => {
     await api('staff', 'POST', { name: fd.get('name'), title: fd.get('title'), salary: Number(fd.get('salary')), startDate: fd.get('startDate') });
     f.reset();
     await loadStaff();
+  } catch (err) { report(err); }
+});
+
+/* ---------- capital chart ---------- */
+type Point = { day: string; capital: number };
+let chartData: { opening: number; points: Point[] } | null = null;
+const NS = 'http://www.w3.org/2000/svg';
+function svg(tag: string, attrs: Record<string, string | number>, text = '') {
+  const el = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+  if (text) el.textContent = text;
+  return el;
+}
+const compact = (n: number) => {
+  try { return new Intl.NumberFormat('en', { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1 }).format(n); }
+  catch { return String(Math.round(n)); }
+};
+const dayLabel = (t: number) => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+function niceStep(range: number, count: number) {
+  const raw = range / count, mag = 10 ** Math.floor(Math.log10(raw)), f = raw / mag;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * mag;
+}
+
+function drawChart() {
+  const box = $('#chart'), empty = $('#chart-empty');
+  box.replaceChildren();
+  empty.hidden = !!chartData?.points.length;
+  if (!chartData?.points.length) return;
+
+  const DAY = 86_400_000;
+  const data = chartData.points.map((p) => ({ t: Date.parse(p.day), v: p.capital }));
+  const pts = [{ t: data[0].t - DAY, v: chartData.opening }, ...data]; // start from the opening capital
+  const W = Math.max(280, box.clientWidth), H = 240, top = 16, bottom = 26, right = 10;
+  const t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+  let lo = Math.min(...pts.map((p) => p.v)), hi = Math.max(...pts.map((p) => p.v));
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const step = niceStep(hi - lo, 3);
+  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+  const x = (t: number) => ((t - t0) / (t1 - t0)) * (W - right);
+  const y = (v: number) => top + (1 - (v - lo) / (hi - lo)) * (H - top - bottom);
+
+  const root = svg('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, 'aria-hidden': 'true' });
+  for (let v = lo; v <= hi + step / 2; v += step) {
+    root.append(svg('line', { class: 'chart-grid', x1: 0, x2: W, y1: y(v), y2: y(v) }), svg('text', { class: 'chart-text', x: 0, y: y(v) - 5 }, compact(v)));
+  }
+  const path = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join('');
+  root.append(
+    svg('path', { class: 'chart-area', d: `${path}L${x(t1)},${H - bottom}L0,${H - bottom}Z` }),
+    svg('path', { class: 'chart-line', d: path }),
+    svg('text', { class: 'chart-text', x: 0, y: H - 6 }, dayLabel(t0)),
+    svg('text', { class: 'chart-text', x: W - right, y: H - 6, 'text-anchor': 'end' }, dayLabel(t1)),
+  );
+  const cross = svg('line', { class: 'chart-cross', y1: top, y2: H - bottom, visibility: 'hidden' });
+  const dot = svg('circle', { class: 'chart-dot', r: 5, cx: x(t1), cy: y(pts[pts.length - 1].v) });
+  root.append(cross, dot);
+
+  // Hover / touch: crosshair snaps to the nearest day and a tooltip shows its value.
+  const tip = h('div', 'chart-tip');
+  tip.hidden = true;
+  const tipDate = h('div', 'text-mute'), tipValue = h('div', 'font-semibold text-ivory tabular-nums');
+  tip.append(tipDate, tipValue);
+  const rest = () => { cross.setAttribute('visibility', 'hidden'); tip.hidden = true; dot.setAttribute('cx', String(x(t1))); dot.setAttribute('cy', String(y(pts[pts.length - 1].v))); };
+  root.addEventListener('pointermove', (e) => {
+    const px = e.clientX - root.getBoundingClientRect().left;
+    const p = pts.reduce((a, b) => (Math.abs(x(b.t) - px) < Math.abs(x(a.t) - px) ? b : a));
+    const cx = x(p.t);
+    cross.setAttribute('x1', String(cx)); cross.setAttribute('x2', String(cx)); cross.setAttribute('visibility', 'visible');
+    dot.setAttribute('cx', String(cx)); dot.setAttribute('cy', String(y(p.v)));
+    tipDate.textContent = dayLabel(p.t); tipValue.textContent = fmt(p.v);
+    tip.hidden = false;
+    tip.style.left = `${Math.min(Math.max(0, cx - tip.offsetWidth / 2), W - tip.offsetWidth)}px`; // CSSOM, allowed by the CSP
+    tip.style.top = `${Math.max(0, y(p.v) - tip.offsetHeight - 12)}px`;
+  });
+  root.addEventListener('pointerleave', rest);
+  box.append(root, tip);
+}
+let resizeTimer = 0;
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = window.setTimeout(drawChart, 150); });
+
+/* ---------- clients ---------- */
+type Client = { id: number; name: string; contact: string; trader: string; live: boolean; deposited: number; pnl: number; wallet: number };
+type Entry = { id: number; kind: 'deposit' | 'withdrawal' | 'profit' | 'loss'; amount: number; at: string; note: string };
+const ENTRY_LABEL = { deposit: 'Deposit', withdrawal: 'Withdrawal', profit: 'Trading profit', loss: 'Trading loss' };
+const openHistory = new Set<number>();
+const signed = (n: number) => `${n < 0 ? '−' : '+'}${fmt(Math.abs(n))}`;
+
+async function fillHistory(c: Client, list: HTMLElement, status: HTMLElement) {
+  try {
+    const data = await api<{ items: Entry[] }>(`clients/${c.id}/history`);
+    list.replaceChildren();
+    if (!data.items.length) list.append(h('li', 'py-2 text-mute', 'No movements yet.'));
+    for (const e of data.items) {
+      const plus = e.kind === 'deposit' || e.kind === 'profit';
+      const li = h('li', 'flex items-baseline justify-between gap-3 border-t border-edge py-2');
+      const left = h('div');
+      left.append(h('p', 'font-semibold', ENTRY_LABEL[e.kind]), h('p', 'text-xs text-mute', [fmtDate(e.at), e.note].filter(Boolean).join(' · ')));
+      const right = h('div', 'flex items-baseline gap-3 whitespace-nowrap');
+      const del = h('button', 'text-xs text-mute hover:text-signal', 'Delete');
+      del.type = 'button';
+      confirmClick(del, async () => { try { await api(`clients/${c.id}/entries/${e.id}`, 'DELETE'); await loadClients(); } catch (err) { report(err, status); } });
+      right.append(h('span', `font-semibold tabular-nums ${plus ? 'pos' : 'neg'}`, signed(plus ? e.amount : -e.amount)), del);
+      li.append(left, right);
+      list.append(li);
+    }
+  } catch (err) { report(err, status); }
+}
+
+function clientCard(c: Client) {
+  const card = h('article', 'space-y-4 border border-edge bg-coal p-6');
+  const status = h('p', 'min-h-5 text-sm');
+  const run = async (fn: () => Promise<unknown>) => { try { await fn(); await loadClients(); } catch (e) { report(e, status); } };
+  const update = (patch: Partial<Client>) => run(() => api(`clients/${c.id}`, 'PUT', { ...c, ...patch }));
+
+  const head = h('div', 'flex items-start justify-between gap-4');
+  const who = h('div');
+  who.append(h('h3', 'text-lg font-semibold', c.name));
+  if (c.contact) who.append(h('p', 'text-sm text-mute', c.contact));
+  const wallet = h('div', 'text-end');
+  wallet.append(h('p', 'text-xs uppercase tracking-widest text-mute', 'Wallet'), h('p', 'font-display text-2xl font-extrabold text-gold tabular-nums', fmt(c.wallet)));
+  head.append(who, wallet);
+
+  const split = h('p', 'flex flex-wrap gap-x-6 gap-y-1 text-sm text-mute');
+  const dep = h('span', '', 'Net deposits '); dep.append(h('b', 'font-semibold text-ivory tabular-nums', fmt(c.deposited)));
+  const pnl = h('span', '', 'Profit / loss '); pnl.append(h('b', `font-semibold tabular-nums ${c.pnl > 0 ? 'pos' : c.pnl < 0 ? 'neg' : 'text-ivory'}`, signed(c.pnl)));
+  split.append(dep, pnl);
+
+  // Live trader
+  const trader = h('div', 'flex flex-wrap items-center justify-between gap-3 border-t border-edge pt-4 text-sm');
+  const tl = h('div', 'flex items-center gap-3');
+  const tname = h('span', 'text-mute', 'Trader ');
+  tname.append(h('b', 'font-semibold text-ivory', c.trader || 'not assigned'));
+  tl.append(tname, h('span', `badge ${c.live ? 'badge-live' : ''}`, c.live ? 'Live' : 'Paused'));
+  const toggle = h('button', 'font-semibold text-gold hover:text-ivory', c.live ? 'Pause trading' : 'Go live');
+  toggle.type = 'button';
+  toggle.addEventListener('click', () => update({ live: !c.live }));
+  trader.append(tl, toggle);
+
+  // History + new movement
+  const hist = h('details', 'border-t border-edge pt-4 text-sm');
+  hist.append(h('summary', 'font-semibold text-gold hover:text-ivory', 'History and new movement'));
+  const ef = h('form', 'mt-3 grid grid-cols-2 gap-3');
+  const kindWrap = h('label', 'block text-sm text-mute', 'Type');
+  const kind = h('select', 'field mt-1'); kind.name = 'kind';
+  for (const [v, label] of Object.entries(ENTRY_LABEL)) { const o = h('option', '', label); o.value = v; kind.append(o); }
+  kindWrap.append(kind);
+  const amount = numField('Amount', 'amount', 0);
+  const amountInput = amount.querySelector('input')!; amountInput.value = ''; amountInput.min = '0.01';
+  const atWrap = h('label', 'block text-sm text-mute', 'Date and time');
+  const at = h('input', 'field mt-1'); at.type = 'datetime-local'; at.name = 'at'; at.required = true; at.value = localInput(new Date());
+  atWrap.append(at);
+  const noteWrap = h('label', 'block text-sm text-mute', 'Note');
+  const note = h('input', 'field mt-1'); note.name = 'note'; note.maxLength = 500;
+  noteWrap.append(note);
+  const add = h('button', 'btn btn-line col-span-2 !py-2', 'Add to history'); add.type = 'submit';
+  ef.append(kindWrap, amount, atWrap, noteWrap, add);
+  ef.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!ef.reportValidity()) return;
+    const fd = new FormData(ef);
+    run(() => api(`clients/${c.id}/entries`, 'POST', { kind: fd.get('kind'), amount: Number(fd.get('amount')), at: new Date(String(fd.get('at'))).toISOString(), note: fd.get('note') }));
+  });
+  const list = h('ul', 'mt-4');
+  hist.append(ef, list);
+  hist.addEventListener('toggle', () => { if (hist.open) { openHistory.add(c.id); fillHistory(c, list, status); } else openHistory.delete(c.id); });
+  if (openHistory.has(c.id)) hist.open = true;
+
+  // Edit / remove
+  const edit = h('details', 'border-t border-edge pt-4 text-sm');
+  edit.append(h('summary', 'text-mute hover:text-ivory', 'Edit client or change trader'));
+  const df = h('form', 'mt-3 grid grid-cols-2 gap-3');
+  const text = (label: string, name: string, value: string, required = false) => {
+    const w = h('label', 'block text-sm text-mute', label);
+    const i = h('input', 'field mt-1'); i.name = name; i.required = required; i.maxLength = 120; i.value = value;
+    if (name === 'trader') i.setAttribute('list', 'trader-names');
+    w.append(i); return w;
+  };
+  const save = h('button', 'btn btn-line !py-2 self-end', 'Save'); save.type = 'submit';
+  df.append(text('Name', 'name', c.name, true), text('Contact', 'contact', c.contact), text('Trader', 'trader', c.trader), save);
+  df.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!df.reportValidity()) return;
+    const fd = new FormData(df);
+    update({ name: String(fd.get('name')), contact: String(fd.get('contact')), trader: String(fd.get('trader')) });
+  });
+  const remove = h('button', 'mt-4 text-mute hover:text-signal', 'Remove client and their history');
+  remove.type = 'button';
+  confirmClick(remove, () => run(() => api(`clients/${c.id}`, 'DELETE')));
+  edit.append(df, remove);
+
+  card.append(head, split, trader, hist, edit, status);
+  return card;
+}
+
+async function loadClients() {
+  try {
+    const [data, staff] = await Promise.all([api<{ items: Client[] }>('clients'), api<{ items: Staff[] }>(`staff?month=${thisMonth()}`)]);
+    $('#client-list').replaceChildren(...data.items.map(clientCard));
+    $('#client-empty').hidden = data.items.length > 0;
+    $('#clients-total').textContent = fmt(data.items.reduce((sum, c) => sum + c.wallet, 0));
+    // Suggest staff names when choosing a trader.
+    $('#trader-names').replaceChildren(...staff.items.map((s) => { const o = h('option'); o.value = s.name; return o; }));
+  } catch (e) { report(e); }
+}
+
+$<HTMLFormElement>('#client-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.currentTarget as HTMLFormElement;
+  if (!f.reportValidity()) return;
+  const fd = new FormData(f);
+  try {
+    const { id } = await api<{ id: number }>('clients', 'POST', { name: fd.get('name'), contact: fd.get('contact'), trader: fd.get('trader'), live: fd.get('live') === 'on' });
+    const deposit = Number(fd.get('deposit'));
+    if (deposit > 0) await api(`clients/${id}/entries`, 'POST', { kind: 'deposit', amount: deposit, at: new Date().toISOString(), note: 'First deposit' });
+    f.reset();
+    await loadClients();
   } catch (err) { report(err); }
 });
 

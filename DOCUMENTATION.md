@@ -193,15 +193,16 @@ A private page for the company's finances. It is not linked from the site, is ex
 
 | File | Role |
 |---|---|
-| `src/pages/admins.astro` | Sign-in screen and the app shell (3 tabs) |
+| `src/pages/admins.astro` | Sign-in screen and the app shell (4 tabs) |
 | `src/scripts/admin.ts` | Browser logic (renders data with `textContent` only) |
 | `functions/api/admin/[[path]].js` | The whole backend: sign-in, session, transactions, staff, login alert |
 
 **Tabs**
 
-1. **Summary**: company capital (opening capital + all money in − all money out), then this month's expenses, revenue and profit on a smaller line, then the transaction history (newest first, delete with a second confirming click). "Settings" sets the opening capital and the currency code (default `USD`).
+1. **Summary**: company capital (opening capital + all money in − all money out), then this month's expenses, revenue and profit on a smaller line, then a "Capital over time" line chart (capital at the end of each day, hover or touch for the exact value), then the transaction history (newest first, delete with a second confirming click). "Settings" sets the opening capital and the currency code (default `USD`).
 2. **New transaction**: in or out, amount, date and time, what it is for, optional note.
 3. **Staff**: add employees with a job title, monthly salary and start date. Each card shows, for the selected month: targets achieved %, followed instructions %, bonus, deduction, an evaluation note and the net pay. "Record salary payment" writes the net pay as an "out" transaction, once per employee per month.
+4. **Clients**: add clients with a contact, an assigned trader and an optional first deposit. Each card shows the client's wallet (net deposits + trading profit − trading loss), the trader with a Live / Paused status you can switch, and the client's history of deposits, withdrawals, profits and losses. Client wallets are client money: they are tracked separately and do **not** change the company capital.
 
 **Security model**
 
