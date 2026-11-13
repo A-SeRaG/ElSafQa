@@ -418,7 +418,7 @@ type Client = { id: number; name: string; contact: string; trader: string; live:
 type Entry = { id: number; kind: 'deposit' | 'withdrawal' | 'profit' | 'loss'; amount: number; at: string; note: string };
 const ENTRY_LABEL = { deposit: 'Deposit', withdrawal: 'Withdrawal', profit: 'Trading profit', loss: 'Trading loss' };
 const openHistory = new Set<number>();
-const signed = (n: number) => `${n < 0 ? '−' : '+'}${fmt(Math.abs(n))}`;
+const signed = (n: number) => `${n < 0 ? '−' : n > 0 ? '+' : ''}${fmt(Math.abs(n))}`;
 
 async function fillHistory(c: Client, list: HTMLElement, status: HTMLElement) {
   try {

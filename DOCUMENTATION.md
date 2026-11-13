@@ -195,7 +195,9 @@ A private page for the company's finances. It is not linked from the site, is ex
 |---|---|
 | `src/pages/admins.astro` | Sign-in screen and the app shell (4 tabs) |
 | `src/scripts/admin.ts` | Browser logic (renders data with `textContent` only) |
-| `functions/api/admin/[[path]].js` | The whole backend: sign-in, session, transactions, staff, login alert |
+| `lib/admin-core.js` | The whole backend logic: sign-in, session, transactions, staff, clients, login alert |
+| `api/admin.js` | Vercel Function that connects to Supabase Postgres and runs the backend |
+| `vercel.json` | Routes `/api/admin/*` to that function and sets the `/admins` security headers |
 
 **Tabs**
 
@@ -206,20 +208,23 @@ A private page for the company's finances. It is not linked from the site, is ex
 
 **Security model**
 
-- The email and password are **never in the repository or in the browser code**. They are checked server-side against Cloudflare secrets, in constant time.
+- The email and password are **never in the repository or in the browser code**. They are checked server-side against Vercel environment variables, in constant time.
 - Sign-in sets an HMAC-signed session cookie: `__Host-` prefix, `HttpOnly`, `Secure`, `SameSite=Strict`, 8 hours.
 - 5 failed sign-ins from one IP lock that IP out for 15 minutes.
 - Every state-changing request must carry this site's `Origin` (CSRF protection). All SQL uses bound parameters.
+- The data lives in its own Postgres schema, `elsafqa_admin`, which the Supabase Data API does not expose. The browser never talks to Supabase; only the Vercel function does.
 - Each successful sign-in sends an alert (time, IP, location, device) to the admin mailbox.
 
-**One-time setup (Cloudflare dashboard)**
+**Hosting:** this app runs on **Vercel** (function) with **Supabase** (Postgres database).
 
-1. *Storage & Databases → D1 → Create database* (e.g. `elsafqa-admin`). Tables are created automatically on first use.
-2. *Pages project → Settings → Bindings → Add → D1 database*: variable name **`DB`**, pick that database.
-3. *Pages project → Settings → Variables and Secrets*, add as **Secret**:
+**One-time setup**
+
+1. **Supabase**: create a project. Click **Connect** at the top of the dashboard and copy the **Transaction pooler** connection string (port `6543`), replacing `[YOUR-PASSWORD]` with the database password. No SQL to run: the tables are created automatically on first use.
+2. **Vercel**: *Project → Settings → Environment Variables*, add (mark them Sensitive):
 
 | Name | Value |
 |---|---|
+| `DATABASE_URL` | The Supabase Transaction pooler connection string (required) |
 | `ADMIN_PASSWORD` | The admin password (required) |
 | `SESSION_SECRET` | A long random string, e.g. output of `openssl rand -hex 32` (required) |
 | `ADMIN_EMAIL` | Sign-in email. Optional, defaults to `support@elsafqa.com` |
@@ -227,14 +232,14 @@ A private page for the company's finances. It is not linked from the site, is ex
 | `MAIL_FROM` | Optional sender, default `ElSafQa Admin <admin@elsafqa.com>`. The domain must be verified in Resend |
 | `ALERT_EMAIL_TO` | Optional recipient of the alert, defaults to `ADMIN_EMAIL` |
 
-4. Redeploy. Until `DB`, `ADMIN_PASSWORD` and `SESSION_SECRET` exist, the page shows "backend is not configured".
+3. Redeploy. Until `DATABASE_URL`, `ADMIN_PASSWORD` and `SESSION_SECRET` exist, the page shows "backend is not configured".
 
-Without `RESEND_API_KEY`, the alert falls back to the Telegram bot already used by the contact form. Changing `SESSION_SECRET` signs everyone out immediately.
+Without `RESEND_API_KEY`, the alert falls back to Telegram if `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set. Changing `SESSION_SECRET` signs everyone out immediately. To look at the data in Supabase, open the Table Editor and switch the schema from `public` to `elsafqa_admin`.
 
 **Local testing**
 
 ```bash
-npm run build
-npx wrangler pages dev dist --d1 DB --binding ADMIN_PASSWORD=test --binding SESSION_SECRET=dev
-# open http://localhost:8788/admins
+npm i -g vercel
+vercel env pull .env.local     # or create .env.local with the variables above
+vercel dev                     # open http://localhost:3000/admins
 ```

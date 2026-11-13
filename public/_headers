@@ -13,6 +13,3 @@
   Cache-Control: public, max-age=31536000, immutable
 /api/*
   Cache-Control: no-store
-/admins*
-  Cache-Control: no-store
-  X-Robots-Tag: noindex, nofollow, noarchive
