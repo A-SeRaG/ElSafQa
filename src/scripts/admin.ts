@@ -3,6 +3,7 @@ type Tx = { id: number; kind: 'in' | 'out'; amount: number; at: string; purpose:
 type Staff = {
   id: number; name: string; title: string; salary: number; startDate: string;
   targetPct: number; instructionsPct: number; bonus: number; deduction: number; note: string; net: number; paidAt: string | null;
+  trading: { clients: number; live: number; managed: number; pnl: number; points: { day: string; value: number }[] } | null;
 };
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
@@ -113,7 +114,8 @@ async function refreshSummary() {
     $<HTMLInputElement>('#currency').value = s.currency;
     const p = await api<{ opening: number; points: Point[] }>('progress');
     chartData = p;
-    drawChart();
+    $('#chart-empty').hidden = p.points.length > 0;
+    redrawCharts();
     txOffset = 0;
     $('#tx-rows').replaceChildren();
     await loadTx();
@@ -272,7 +274,18 @@ function staffCard(s: Staff, month: string) {
   });
   edit.append(ef);
 
-  card.append(head, meter('Targets achieved', s.targetPct), meter('Followed instructions', s.instructionsPct), review, actions, edit, status);
+  card.append(head, meter('Targets achieved', s.targetPct), meter('Followed instructions', s.instructionsPct));
+  // Trading performance, for staff who are assigned to clients as their trader.
+  if (s.trading) {
+    const t = s.trading;
+    const line = h('div', 'flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-edge pt-4 text-sm text-mute');
+    const managing = h('span', '', 'Managing '); managing.append(h('b', 'font-semibold text-ivory tabular-nums', fmt(t.managed)));
+    const result = h('span', '', 'Client profit / loss '); result.append(h('b', `font-semibold tabular-nums ${t.pnl > 0 ? 'pos' : t.pnl < 0 ? 'neg' : 'text-ivory'}`, signed(t.pnl)));
+    line.append(h('span', `badge ${t.live ? 'badge-live' : ''}`, t.live ? `Live on ${t.live} of ${t.clients}` : 'Paused'),
+      h('span', '', `${t.clients} client${t.clients === 1 ? '' : 's'}`), managing, result);
+    card.append(line, chartBlock('Client profit / loss over time', toSeries(t.points), { zero: true, signed: true }));
+  }
+  card.append(review, actions, edit, status);
   return card;
 }
 
@@ -282,6 +295,7 @@ async function loadStaff() {
     const data = await api<{ items: Staff[] }>(`staff?month=${month}`);
     $('#staff-list').replaceChildren(...data.items.map((s) => staffCard(s, month)));
     $('#staff-empty').hidden = data.items.length > 0;
+    redrawCharts();
   } catch (e) { report(e); }
 }
 
@@ -317,23 +331,33 @@ function niceStep(range: number, count: number) {
   return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * mag;
 }
 
-function drawChart() {
-  const box = $('#chart'), empty = $('#chart-empty');
-  box.replaceChildren();
-  empty.hidden = !!chartData?.points.length;
-  if (!chartData?.points.length) return;
+type Pt = { t: number; v: number };
+type ChartOpts = { height?: number; zero?: boolean; signed?: boolean };
+const DAY = 86_400_000;
+// Daily values -> chart points, with a starting point the day before the first movement.
+const toSeries = (points: { day: string; value: number }[], start = 0): Pt[] =>
+  points.length ? [{ t: Date.parse(points[0].day) - DAY, v: start }, ...points.map((p) => ({ t: Date.parse(p.day), v: p.value }))] : [];
 
-  const DAY = 86_400_000;
-  const data = chartData.points.map((p) => ({ t: Date.parse(p.day), v: p.capital }));
-  const pts = [{ t: data[0].t - DAY, v: chartData.opening }, ...data]; // start from the opening capital
-  const W = Math.max(280, box.clientWidth), H = 240, top = 16, bottom = 26, right = 10;
+// Every chart on the page registers here so it can be redrawn on resize or after its card is attached.
+const charts = new Map<HTMLElement, () => void>();
+function mountChart(box: HTMLElement, getPts: () => Pt[], opts: ChartOpts = {}) { charts.set(box, () => renderChart(box, getPts(), opts)); }
+function redrawCharts() { for (const [box, draw] of charts) { if (box.isConnected) draw(); else charts.delete(box); } }
+
+function renderChart(box: HTMLElement, pts: Pt[], opts: ChartOpts) {
+  if (!box.clientWidth) return; // hidden tab: drawn when it opens
+  box.replaceChildren();
+  if (pts.length < 2) return;
+  const show = (v: number) => (opts.signed ? signed(v) : fmt(v));
+  const W = Math.max(240, box.clientWidth), H = opts.height ?? 240, top = 16, bottom = 26, right = 10;
   const t0 = pts[0].t, t1 = pts[pts.length - 1].t;
   let lo = Math.min(...pts.map((p) => p.v)), hi = Math.max(...pts.map((p) => p.v));
+  if (opts.zero) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
   if (lo === hi) { lo -= 1; hi += 1; }
-  const step = niceStep(hi - lo, 3);
+  const step = niceStep(hi - lo, H < 200 ? 2 : 3);
   lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
   const x = (t: number) => ((t - t0) / (t1 - t0)) * (W - right);
   const y = (v: number) => top + (1 - (v - lo) / (hi - lo)) * (H - top - bottom);
+  const base = opts.zero ? y(0) : H - bottom; // the area hangs from zero when the series can go negative
 
   const root = svg('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, 'aria-hidden': 'true' });
   for (let v = lo; v <= hi + step / 2; v += step) {
@@ -341,13 +365,14 @@ function drawChart() {
   }
   const path = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join('');
   root.append(
-    svg('path', { class: 'chart-area', d: `${path}L${x(t1)},${H - bottom}L0,${H - bottom}Z` }),
+    svg('path', { class: 'chart-area', d: `${path}L${x(t1)},${base}L0,${base}Z` }),
     svg('path', { class: 'chart-line', d: path }),
     svg('text', { class: 'chart-text', x: 0, y: H - 6 }, dayLabel(t0)),
     svg('text', { class: 'chart-text', x: W - right, y: H - 6, 'text-anchor': 'end' }, dayLabel(t1)),
   );
+  const last = pts[pts.length - 1];
   const cross = svg('line', { class: 'chart-cross', y1: top, y2: H - bottom, visibility: 'hidden' });
-  const dot = svg('circle', { class: 'chart-dot', r: 5, cx: x(t1), cy: y(pts[pts.length - 1].v) });
+  const dot = svg('circle', { class: 'chart-dot', r: 5, cx: x(t1), cy: y(last.v) });
   root.append(cross, dot);
 
   // Hover / touch: crosshair snaps to the nearest day and a tooltip shows its value.
@@ -355,26 +380,41 @@ function drawChart() {
   tip.hidden = true;
   const tipDate = h('div', 'text-mute'), tipValue = h('div', 'font-semibold text-ivory tabular-nums');
   tip.append(tipDate, tipValue);
-  const rest = () => { cross.setAttribute('visibility', 'hidden'); tip.hidden = true; dot.setAttribute('cx', String(x(t1))); dot.setAttribute('cy', String(y(pts[pts.length - 1].v))); };
   root.addEventListener('pointermove', (e) => {
     const px = e.clientX - root.getBoundingClientRect().left;
     const p = pts.reduce((a, b) => (Math.abs(x(b.t) - px) < Math.abs(x(a.t) - px) ? b : a));
     const cx = x(p.t);
     cross.setAttribute('x1', String(cx)); cross.setAttribute('x2', String(cx)); cross.setAttribute('visibility', 'visible');
     dot.setAttribute('cx', String(cx)); dot.setAttribute('cy', String(y(p.v)));
-    tipDate.textContent = dayLabel(p.t); tipValue.textContent = fmt(p.v);
+    tipDate.textContent = dayLabel(p.t); tipValue.textContent = show(p.v);
     tip.hidden = false;
     tip.style.left = `${Math.min(Math.max(0, cx - tip.offsetWidth / 2), W - tip.offsetWidth)}px`; // CSSOM, allowed by the CSP
     tip.style.top = `${Math.max(0, y(p.v) - tip.offsetHeight - 12)}px`;
   });
-  root.addEventListener('pointerleave', rest);
+  root.addEventListener('pointerleave', () => {
+    cross.setAttribute('visibility', 'hidden'); tip.hidden = true;
+    dot.setAttribute('cx', String(x(t1))); dot.setAttribute('cy', String(y(last.v)));
+  });
   box.append(root, tip);
 }
+// A titled chart block for a card; says so when there is nothing to plot yet.
+function chartBlock(title: string, pts: Pt[], opts: ChartOpts) {
+  const wrap = h('div', 'border-t border-edge pt-4');
+  wrap.append(h('p', 'text-xs uppercase tracking-widest text-mute', title));
+  if (pts.length < 2) { wrap.append(h('p', 'mt-2 text-sm text-mute', 'No movements to plot yet.')); return wrap; }
+  const box = h('div', 'relative mt-2');
+  box.setAttribute('role', 'img'); box.setAttribute('aria-label', title);
+  mountChart(box, () => pts, { height: 170, ...opts });
+  wrap.append(box);
+  return wrap;
+}
+
+mountChart($('#chart'), () => (chartData ? toSeries(chartData.points.map((p) => ({ day: p.day, value: p.capital })), chartData.opening) : []));
 let resizeTimer = 0;
-window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = window.setTimeout(drawChart, 150); });
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = window.setTimeout(redrawCharts, 150); });
 
 /* ---------- clients ---------- */
-type Client = { id: number; name: string; contact: string; trader: string; live: boolean; deposited: number; pnl: number; wallet: number };
+type Client = { id: number; name: string; contact: string; trader: string; live: boolean; deposited: number; pnl: number; wallet: number; points: { day: string; value: number }[] };
 type Entry = { id: number; kind: 'deposit' | 'withdrawal' | 'profit' | 'loss'; amount: number; at: string; note: string };
 const ENTRY_LABEL = { deposit: 'Deposit', withdrawal: 'Withdrawal', profit: 'Trading profit', loss: 'Trading loss' };
 const openHistory = new Set<number>();
@@ -405,7 +445,7 @@ function clientCard(c: Client) {
   const card = h('article', 'space-y-4 border border-edge bg-coal p-6');
   const status = h('p', 'min-h-5 text-sm');
   const run = async (fn: () => Promise<unknown>) => { try { await fn(); await loadClients(); } catch (e) { report(e, status); } };
-  const update = (patch: Partial<Client>) => run(() => api(`clients/${c.id}`, 'PUT', { ...c, ...patch }));
+  const update = (patch: Partial<Client>) => run(() => api(`clients/${c.id}`, 'PUT', { name: c.name, contact: c.contact, trader: c.trader, live: c.live, ...patch }));
 
   const head = h('div', 'flex items-start justify-between gap-4');
   const who = h('div');
@@ -483,7 +523,7 @@ function clientCard(c: Client) {
   confirmClick(remove, () => run(() => api(`clients/${c.id}`, 'DELETE')));
   edit.append(df, remove);
 
-  card.append(head, split, trader, hist, edit, status);
+  card.append(head, split, chartBlock('Wallet over time', toSeries(c.points), {}), trader, hist, edit, status);
   return card;
 }
 
@@ -492,6 +532,7 @@ async function loadClients() {
     const [data, staff] = await Promise.all([api<{ items: Client[] }>('clients'), api<{ items: Staff[] }>(`staff?month=${thisMonth()}`)]);
     $('#client-list').replaceChildren(...data.items.map(clientCard));
     $('#client-empty').hidden = data.items.length > 0;
+    redrawCharts();
     $('#clients-total').textContent = fmt(data.items.reduce((sum, c) => sum + c.wallet, 0));
     // Suggest staff names when choosing a trader.
     $('#trader-names').replaceChildren(...staff.items.map((s) => { const o = h('option'); o.value = s.name; return o; }));

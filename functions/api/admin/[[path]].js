@@ -228,6 +228,7 @@ async function listStaff(db, url) {
     `SELECT e.*, r.target_pct, r.instructions_pct, r.bonus, r.deduction, r.note, r.paid_at
      FROM employees e LEFT JOIN reviews r ON r.employee_id = e.id AND r.month = ?
      ORDER BY e.name COLLATE NOCASE`).bind(month).all();
+  const [rows, days] = await Promise.all([clientRows(db), clientDays(db)]);
   return json({
     ok: true,
     items: results.map((e) => ({
@@ -235,6 +236,7 @@ async function listStaff(db, url) {
       targetPct: e.target_pct ?? 0, instructionsPct: e.instructions_pct ?? 0,
       bonus: money(e.bonus ?? 0), deduction: money(e.deduction ?? 0), note: e.note ?? '',
       net: money(e.salary + (e.bonus ?? 0) - (e.deduction ?? 0)), paidAt: e.paid_at ?? null,
+      trading: tradingFor(e.name, rows, days),
     })),
   });
 }
@@ -281,20 +283,51 @@ async function paySalary(db, id, b) {
 
 /* ---------- clients ---------- */
 // A client's wallet is client money, kept apart from the company's own capital.
-async function listClients(db) {
-  const { results } = await db.prepare(
+const clientRows = async (db) => (await db.prepare(
     `SELECT c.*,
        COALESCE(SUM(CASE e.kind WHEN 'deposit' THEN e.amount WHEN 'withdrawal' THEN -e.amount ELSE 0 END), 0) AS deposited,
        COALESCE(SUM(CASE e.kind WHEN 'profit' THEN e.amount WHEN 'loss' THEN -e.amount ELSE 0 END), 0) AS pnl
      FROM clients c LEFT JOIN client_entries e ON e.client_id = c.id
-     GROUP BY c.id ORDER BY c.name COLLATE NOCASE`).all();
+     GROUP BY c.id ORDER BY c.name COLLATE NOCASE`).all()).results;
+
+// Per client and day: change of the wallet (net) and the trading result alone (pnl).
+const clientDays = async (db) => (await db.prepare(
+  `SELECT client_id, substr(at, 1, 10) AS day,
+     SUM(CASE WHEN kind IN ('deposit','profit') THEN amount ELSE -amount END) AS net,
+     SUM(CASE kind WHEN 'profit' THEN amount WHEN 'loss' THEN -amount ELSE 0 END) AS pnl
+   FROM client_entries GROUP BY client_id, day ORDER BY day`).all()).results;
+
+async function listClients(db) {
+  const [rows, days] = await Promise.all([clientRows(db), clientDays(db)]);
   return json({
     ok: true,
-    items: results.map((c) => ({
-      id: c.id, name: c.name, contact: c.contact, trader: c.trader, live: !!c.live,
-      deposited: money(c.deposited), pnl: money(c.pnl), wallet: money(c.deposited + c.pnl),
-    })),
+    items: rows.map((c) => {
+      let running = 0;
+      return {
+        id: c.id, name: c.name, contact: c.contact, trader: c.trader, live: !!c.live,
+        deposited: money(c.deposited), pnl: money(c.pnl), wallet: money(c.deposited + c.pnl),
+        points: days.filter((d) => d.client_id === c.id).map((d) => ({ day: d.day, value: money((running += d.net)) })),
+      };
+    }),
   });
+}
+
+// What a staff member does as a trader: the clients whose "trader" field carries their name.
+function tradingFor(name, rows, days) {
+  const key = name.trim().toLowerCase();
+  const mine = rows.filter((c) => c.trader.trim().toLowerCase() === key);
+  if (!mine.length) return null;
+  const ids = new Set(mine.map((c) => c.id));
+  const byDay = new Map();
+  for (const d of days) if (ids.has(d.client_id) && d.pnl) byDay.set(d.day, (byDay.get(d.day) || 0) + d.pnl);
+  let running = 0;
+  return {
+    clients: mine.length,
+    live: mine.filter((c) => c.live).length,
+    managed: money(mine.reduce((sum, c) => sum + c.deposited + c.pnl, 0)),
+    pnl: money(mine.reduce((sum, c) => sum + c.pnl, 0)),
+    points: [...byDay].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([day, v]) => ({ day, value: money((running += v)) })),
+  };
 }
 
 function clientInput(b) {
