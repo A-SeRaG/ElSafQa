@@ -6,6 +6,7 @@ export const content = {
     meta: { title: 'ElSafQa | Free gold scalping channel', desc: 'ElSafQa shares XAUUSD gold scalping ideas with clear entry, stop-loss and targets. Join the free Telegram channel. Trading involves risk.' },
     nav: { about: 'About', how: 'How it works', channel: 'Channel', faq: 'FAQ', contact: 'Contact' },
     join: 'Join the free channel',
+    login: 'Log in',
     talk: 'Contact us',
     hero: { l1: 'Think smart.', l2: 'Trade wise.', sub: 'ElSafQa shares gold (XAUUSD) scalping ideas with a clear entry, stop-loss and targets. Free, on Telegram.', note: 'Educational content. Not investment advice. Trading involves risk of loss.' },
     about: { title: 'Built around gold and defined risk', items: [
@@ -36,6 +37,7 @@ export const content = {
     meta: { title: 'الصفقة | قناة سكالبينج الذهب المجانية', desc: 'الصفقة تشارك أفكار سكالبينج الذهب XAUUSD بنقطة دخول ووقف خسارة وأهداف واضحة. انضم إلى قناة تيليجرام المجانية. التداول ينطوي على مخاطر.' },
     nav: { about: 'من نحن', how: 'كيف تعمل', channel: 'القناة', faq: 'الأسئلة', contact: 'تواصل' },
     join: 'انضم إلى القناة المجانية',
+    login: 'تسجيل الدخول',
     talk: 'تواصل معنا',
     hero: { l1: 'فكّر بذكاء.', l2: 'تداول بحكمة.', sub: 'الصفقة تشارك أفكار سكالبينج الذهب (XAUUSD) بنقطة دخول ووقف خسارة وأهداف واضحة. مجانًا على تيليجرام.', note: 'محتوى تعليمي وليس نصيحة استثمارية. التداول ينطوي على مخاطر الخسارة.' },
     about: { title: 'نركز على الذهب وإدارة المخاطر', items: [
