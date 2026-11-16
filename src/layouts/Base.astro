@@ -52,6 +52,20 @@ const ld = { '@context': 'https://schema.org', '@type': 'Organization', name: SI
       <div class="flex items-center gap-4">
         <a href={altPath} hreflang={lang === 'ar' ? 'en' : 'ar'} class="text-sm font-semibold text-gold hover:text-ivory">{t.langName}</a>
         <a href="/login" rel="nofollow" class="btn btn-line whitespace-nowrap !px-4 !py-2 text-sm">{t.login}</a>
+        <!-- Phone menu: a native <details>, so it opens even before any script loads -->
+        <details id="menu" class="relative md:hidden">
+          <summary class="flex h-9 w-9 items-center justify-center border border-edge text-gold" aria-label={t.menu}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" /></svg>
+          </summary>
+          <nav class="absolute end-0 top-full z-50 mt-3 flex w-60 flex-col border border-edge bg-coal p-2 text-base" aria-label={t.menu}>
+            <a class="px-4 py-3 hover:text-gold" href={`${p}/#about`}>{t.nav.about}</a>
+            <a class="px-4 py-3 hover:text-gold" href={`${p}/#how`}>{t.nav.how}</a>
+            <a class="px-4 py-3 hover:text-gold" href={`${p}/#channel`}>{t.nav.channel}</a>
+            <a class="px-4 py-3 hover:text-gold" href={`${p}/#faq`}>{t.nav.faq}</a>
+            <a class="px-4 py-3 hover:text-gold" href={`${p}/#contact`}>{t.nav.contact}</a>
+            <a href={TELEGRAM_URL} rel="noopener noreferrer" class="btn btn-gold mt-2 !px-4 !py-3 text-sm">{t.join}</a>
+          </nav>
+        </details>
         <a href={TELEGRAM_URL} rel="noopener noreferrer" class="btn btn-gold whitespace-nowrap !hidden !py-2 lg:!inline-block">{t.join}</a>
       </div>
     </div>
@@ -70,5 +84,8 @@ const ld = { '@context': 'https://schema.org', '@type': 'Organization', name: SI
       </div>
     </div>
   </footer>
+  <script>import '../scripts/menu';</script>
+  <!-- Vercel Web Analytics: cookie-less visit counts. Does nothing until Analytics is enabled for the project in Vercel. -->
+  <script is:inline defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>

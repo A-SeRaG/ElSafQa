@@ -2,7 +2,6 @@ import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
 import sitemap from '@astrojs/sitemap';
 
-// TODO: replace with the real domain
 export default defineConfig({
   site: 'https://elsafqa.com',
   integrations: [sitemap({ filter: (page) => !page.includes('/login') })], // keep the private sign-in page out of the sitemap
