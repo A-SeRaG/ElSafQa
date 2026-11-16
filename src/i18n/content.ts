@@ -18,8 +18,8 @@ export const content = {
       { h: 'Join Telegram', p: 'Open the channel and turn notifications on.' },
       { h: 'Read the idea', p: 'Each post shows the direction, entry zone, stop-loss and targets.' },
       { h: 'Decide for yourself', p: 'Size your position to your own risk limit. The decision is always yours.' } ] },
-    channel: { title: 'Scalp Channel, free', p: 'Gold scalping ideas, posted where you already are. No subscription and no card needed.', alt: 'ElSafQa Scalp Channel: gold bars, a golden bull and an XAUUSD chart' },
-    vip: { title: 'VIP channel', p: 'For traders who want more than the free channel.', items: ['More trade ideas through the day', 'Direct customer support from our team'], note: 'The same rule applies in VIP: every trade can lose, and we do not guarantee profits.', cta: 'Ask about VIP' },
+    channel: { title: 'Scalp Channel, free', p: 'Gold scalping ideas, posted where you already are. No subscription and no card needed.', members: 'More than 15,000 members', alt: 'ElSafQa Scalp Channel: gold bars, a golden bull and an XAUUSD chart' },
+    vip: { title: 'VIP channel', p: 'For traders who want more than the free channel.', items: ['More trade ideas through the day', 'Direct customer support from our team'], price: 'Subscription: $50', note: 'The same rule applies in VIP: every trade can lose, and we do not guarantee profits.', cta: 'Ask about VIP' },
     risk: 'Trading leveraged products such as gold carries a high risk of loss. Only trade money you can afford to lose. We do not guarantee profits.',
     faq: { title: 'Questions', items: [
       { q: 'Is the channel really free?', a: 'Yes. Joining the Scalp Channel costs nothing.' },
@@ -51,8 +51,8 @@ export const content = {
       { h: 'انضم إلى تيليجرام', p: 'افتح القناة وفعّل الإشعارات.' },
       { h: 'اقرأ الفكرة', p: 'كل منشور يوضح الاتجاه ومنطقة الدخول ووقف الخسارة والأهداف.' },
       { h: 'قرّر بنفسك', p: 'حدّد حجم صفقتك وفق حد المخاطرة الخاص بك. القرار دائمًا قرارك.' } ] },
-    channel: { title: 'قناة السكالب، مجانًا', p: 'أفكار سكالبينج الذهب في المكان الذي تستخدمه أصلًا. بدون اشتراك وبدون بطاقة.', alt: 'قناة الصفقة للسكالب: سبائك ذهب وثور ذهبي وشارت XAUUSD' },
-    vip: { title: 'قناة VIP', p: 'لمن يريد أكثر من القناة المجانية.', items: ['أفكار تداول أكثر على مدار اليوم', 'دعم مباشر من فريقنا'], note: 'القاعدة نفسها تنطبق على VIP: أي صفقة قد تخسر، ونحن لا نضمن الأرباح.', cta: 'اسأل عن VIP' },
+    channel: { title: 'قناة السكالب، مجانًا', p: 'أفكار سكالبينج الذهب في المكان الذي تستخدمه أصلًا. بدون اشتراك وبدون بطاقة.', members: 'أكثر من 15 ألف عضو', alt: 'قناة الصفقة للسكالب: سبائك ذهب وثور ذهبي وشارت XAUUSD' },
+    vip: { title: 'قناة VIP', p: 'لمن يريد أكثر من القناة المجانية.', items: ['أفكار تداول أكثر على مدار اليوم', 'دعم مباشر من فريقنا'], price: 'الاشتراك: 50 دولارًا', note: 'القاعدة نفسها تنطبق على VIP: أي صفقة قد تخسر، ونحن لا نضمن الأرباح.', cta: 'اسأل عن VIP' },
     risk: 'تداول المنتجات ذات الرافعة المالية مثل الذهب ينطوي على مخاطر عالية للخسارة. تداول فقط بأموال يمكنك تحمّل خسارتها. نحن لا نضمن الأرباح.',
     faq: { title: 'أسئلة شائعة', items: [
       { q: 'هل القناة مجانية فعلًا؟', a: 'نعم. الانضمام إلى قناة السكالب لا يكلّف شيئًا.' },
