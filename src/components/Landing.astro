@@ -23,7 +23,7 @@ const alt = lang === 'ar' ? '/' : '/ar/';
         </div>
         <p class="mt-6 max-w-xl text-sm text-mute">{t.hero.note}</p>
       </div>
-      <img src="/images/emblem.webp" alt="ElSafQa" width="960" height="960" fetchpriority="high" class="emblem mx-auto w-full max-w-md" />
+      <img src="/images/emblem-960.webp" srcset="/images/emblem-720.webp 720w, /images/emblem-960.webp 960w" sizes="(min-width: 768px) 448px, 92vw" alt="ElSafQa" width="960" height="960" fetchpriority="high" class="emblem mx-auto w-full max-w-md" />
     </div>
   </section>
 
@@ -68,9 +68,24 @@ const alt = lang === 'ar' ? '/' : '/ar/';
     </div>
   </section>
 
+  <!-- VIP -->
+  <section id="vip" class="border-t border-edge bg-coal">
+    <div class="mx-auto flex max-w-6xl flex-col justify-between gap-8 px-5 py-20 md:flex-row md:items-center">
+      <div class="max-w-2xl">
+        <h2 class="text-3xl font-bold sm:text-4xl">{t.vip.title}</h2>
+        <p class="mt-3 text-ivory/80">{t.vip.p}</p>
+        <ul class="mt-6 space-y-2">
+          {t.vip.items.map((i) => <li class="border-s-2 border-gold ps-4">{i}</li>)}
+        </ul>
+        <p class="mt-6 text-sm text-mute">{t.vip.note}</p>
+      </div>
+      <a href="#contact" class="btn btn-gold shrink-0">{t.vip.cta}</a>
+    </div>
+  </section>
+
   <!-- Risk -->
-  <section aria-label="Risk">
-    <div class="mx-auto max-w-6xl px-5 pb-20">
+  <section aria-label="Risk" class="border-t border-edge">
+    <div class="mx-auto max-w-6xl px-5 py-20">
       <p class="border-s-4 border-signal bg-coal px-6 py-5 text-ivory/90">{t.risk}</p>
     </div>
   </section>

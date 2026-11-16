@@ -1,6 +1,6 @@
 # ElSafQa Landing Page: Feature Documentation
 
-**Stack:** Astro 5 (static) + Tailwind CSS 4 + Cloudflare Pages + one Pages Function (contact form)
+**Stack:** Astro (static) + Tailwind CSS 4, hosted on **Vercel** (two Vercel Functions: contact form and the team app) with **Supabase** Postgres for the team app's data
 **Languages:** English (`/`) and Arabic RTL (`/ar/`)
 **Brand identity:** black and gold, taken from the supplied emblem, wordmark and Scalp Channel banner.
 
@@ -23,9 +23,11 @@ elsafqa-landing/
 ├─ astro.config.mjs          Site URL, sitemap, Tailwind, build security settings
 ├─ DOCUMENTATION.md          This file
 ├─ .env.example              All environment variables
-├─ functions/api/contact.js  Cloudflare Pages Function: contact form backend
+├─ vercel.json               Security headers (CSP, HSTS, ...), cache rules, redirects, API routing
+├─ api/contact.js            Vercel Function: contact form backend
+├─ api/admin.js              Vercel Function: team app backend (see section 15)
+├─ lib/admin-core.js         Team app logic
 ├─ public/
-│  ├─ _headers               Security headers + cache rules (CSP, HSTS, ...)
 │  ├─ robots.txt
 │  ├─ favicon.png
 │  └─ images/                Optimized brand assets (see section 3)
@@ -36,8 +38,10 @@ elsafqa-landing/
    ├─ components/
    │  ├─ Landing.astro       The home page (all sections)
    │  └─ Legal.astro         Risk / privacy / terms page
-   ├─ pages/                 index, legal  (+ ar/index, ar/legal)
+   ├─ pages/                 index, legal  (+ ar/index, ar/legal), login
    ├─ scripts/contact.ts     Form submit logic
+   ├─ scripts/menu.ts        Closes the phone menu after a tap
+   ├─ scripts/admin.ts       Team app (section 15)
    └─ styles/global.css      Brand tokens + shared component styles
 ```
 
@@ -105,7 +109,7 @@ Accessible accordion built with native `<details>` (works with no JavaScript).
 Emblem, legal disclaimer, link to the legal page, Telegram link and copyright (year updates automatically at build time).
 
 ### 4.10 Legal page (`/legal`, `/ar/legal`)
-Risk disclosure, privacy and terms of use. **This is draft text. Have a lawyer review it before launch.**
+Risk disclosure, privacy and terms of use. **The text has not been reviewed by a lawyer.** The page no longer says so publicly, so get it reviewed.
 
 ## 5. Bilingual and RTL
 - Each language has its own URL (`/` and `/ar/`), which is best for SEO.
@@ -118,24 +122,24 @@ Risk disclosure, privacy and terms of use. **This is draft text. Have a lawyer r
 | Measure | Where | What it does |
 |---|---|---|
 | Static site | Astro build | No server or database to attack for page views |
-| Strict CSP | `public/_headers` | Only your own files plus Cloudflare Turnstile may run. No inline scripts or styles |
-| HSTS, nosniff, Referrer-Policy, Permissions-Policy, COOP/CORP | `public/_headers` | Forces HTTPS, blocks MIME sniffing, limits browser features |
+| Strict CSP | `vercel.json` | Only your own files plus Cloudflare Turnstile may run. No inline scripts or styles |
+| HSTS, nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy, COOP | `vercel.json` | Forces HTTPS, blocks MIME sniffing, limits browser features |
 | `frame-ancestors 'none'` | CSP | Prevents clickjacking |
 | Scripts and CSS never inlined | `astro.config.mjs` | Lets the CSP stay strict |
 | Self-hosted fonts | Fontsource | No third-party font requests (privacy and speed) |
 | Turnstile + honeypot + origin check | Form and function | Blocks bots and cross-site abuse |
-| Secrets as environment variables | Cloudflare dashboard | Tokens never reach the browser |
+| Secrets as environment variables | Vercel project settings | Tokens never reach the browser |
 | `npm run audit` | package.json | Finds vulnerable dependencies |
 
-**Recommended Cloudflare settings (dashboard):** enable DNSSEC, "Always Use HTTPS", Bot Fight Mode, and add a WAF rate-limit rule for `/api/contact` (for example, 5 requests per minute per IP).
+**Recommended:** in Vercel > Firewall, add a rate-limit rule for `/api/contact` and `/api/admin/login` (for example, 5 requests per minute per IP). Enable DNSSEC at your domain registrar.
 
 **Email:** set SPF, DKIM and DMARC on your domain so nobody can spoof ElSafQa emails.
 
 ## 7. Performance
-- Zero framework JavaScript. The only script is the small form handler, plus Turnstile.
+- Zero framework JavaScript on the public pages. The only scripts are the small form handler, the phone-menu helper, Turnstile and the Vercel Analytics counter.
 - Images are WebP with explicit width/height (no layout shift), lazy loading below the fold and `srcset` for the banner.
-- Hero emblem loads with `fetchpriority="high"`.
-- Long-term immutable caching for `/_astro/*` and `/images/*`.
+- Hero emblem loads with `fetchpriority="high"` and a `srcset` (720 px and 960 px versions).
+- Immutable one-year caching for `/_astro/*` (hashed file names) and 30 days for `/images/*`.
 - Fonts are subsetted by Fontsource, so the browser downloads only the scripts it needs.
 - Target: Lighthouse 95+ on mobile. Run Lighthouse after deploying and tune from there.
 
@@ -149,15 +153,14 @@ Risk disclosure, privacy and terms of use. **This is draft text. Have a lawyer r
 | `TELEGRAM_BOT_TOKEN` | secret | Bot that receives contact messages |
 | `TELEGRAM_CHAT_ID` | secret | Chat that receives them |
 
-Secrets go in **Cloudflare Pages > Settings > Variables and Secrets**. Never commit them.
+All of them go in **Vercel > Project > Settings > Environment Variables**. Never commit them. The two `PUBLIC_` values are built into the pages, so redeploy after changing them. The team app has its own variables (section 15); `.env.example` lists everything.
 
-## 9. Deployment (Cloudflare Pages)
-1. Push the project to GitHub.
-2. Cloudflare Dashboard > Workers & Pages > Create > Pages > connect the repo.
-3. Build command `npm run build`, output directory `dist`.
-4. Add the variables from section 8.
-5. Add your custom domain, then update `site` in `astro.config.mjs` and the Sitemap line in `public/robots.txt`.
-6. The `functions/` folder is detected automatically.
+## 9. Deployment (Vercel)
+1. The GitHub repo is connected to a Vercel project; every push to `main` deploys automatically, and other branches get a preview URL.
+2. Framework preset: Astro. Build command `npm run build`, output directory `dist`.
+3. Add the variables from section 8 (and section 15 for the team app), then redeploy.
+4. Files in `api/` are deployed as Vercel Functions automatically. `vercel.json` adds the headers, redirects and API routing.
+5. Optional: turn on **Analytics** for the project in Vercel to count visits (the script is already in the pages and is cookie-less).
 
 ## 10. SEO
 Per-page title and description, canonical URLs, `hreflang`, Open Graph and Twitter cards (using `og-image.jpg`), Organization structured data (JSON-LD), auto-generated `sitemap-index.xml` and `robots.txt`.
@@ -168,7 +171,7 @@ Skip link, semantic landmarks and heading order, visible gold focus ring, labell
 ## 12. Compliance notes
 - The page makes no profit claims and shows a risk warning in the hero, in a dedicated strip, in the footer and on the legal page.
 - Check the marketing rules of your regulator (in Egypt, the FRA) before launch.
-- No cookies and no advertising trackers are used, so no cookie banner is needed. If you add analytics later, prefer Plausible or Umami.
+- No advertising trackers are used. Visit counting uses Vercel Web Analytics, which sets no cookies, so no cookie banner is needed. The team app at `/login` sets one strictly necessary session cookie.
 
 ## 13. Before you launch (checklist)
 - [ ] Set the real Telegram channel link (the default `t.me/elsafqa` is a placeholder).
@@ -182,12 +185,12 @@ Skip link, semantic landmarks and heading order, visible gold focus ring, labell
 ## 14. Extending later
 - **More sections:** add a block to `Landing.astro` and its text to both languages in `content.ts`.
 - **Blog or education pages:** add files under `src/pages` (Astro content collections work well).
-- **Live gold price widget:** fetch through a Pages Function and add its domain to `connect-src` in `_headers`.
-- **Analytics:** add a deferred script and allow its host in `script-src` and `connect-src`.
+- **Live gold price widget:** fetch through a Vercel Function in `api/` so the browser only talks to your own domain.
+- **Other third-party scripts:** allow their host in `script-src` and `connect-src` in `vercel.json`.
 
 ## 15. Team app (`/login`): admin finance app and staff view
 
-A private page for the company's finances. It is not linked from the site, is excluded from the sitemap, and is served with `noindex` and `no-store`.
+A private page for the company's finances. The site header has a "Log in" button that opens it. It is excluded from the sitemap and is served with `noindex` and `no-store`.
 
 **Files**
 
@@ -214,7 +217,7 @@ A private page for the company's finances. It is not linked from the site, is ex
 | Staff | The sign-in email and password the admin sets on their employee card | Only the Staff tab, with only their own card |
 
 - A staff member can **read** their own card (targets, bonus, deduction, whether the salary was paid) and **add deals** (deal name, earning or loss, amount, date, note). They cannot edit or delete anything, and cannot see other staff, clients, transactions or the company summary. The server refuses those requests; hiding the tabs is only cosmetic.
-- The admin gives an employee a sign-in in *Add employee* or under *Edit details or sign-in* on the card. An empty email removes the sign-in and signs that person out. Staff passwords are stored only as salted PBKDF2 hashes.
+- The admin gives an employee a sign-in in *Add employee* or under *Edit details or sign-in* on the card. An empty email removes the sign-in. Removing the sign-in or changing the password signs that person out everywhere at once. Staff passwords are stored only as salted PBKDF2 hashes.
 - Deals are a performance record. They do not change the company capital or any client wallet.
 - **Test staff account:** set the environment variable `TEST_STAFF_PASSWORD` in Vercel and redeploy. The account `staff.test@elsafqa.com` ("Test Staff") then exists with that password. Remove the variable and redeploy to switch its sign-in off.
 
