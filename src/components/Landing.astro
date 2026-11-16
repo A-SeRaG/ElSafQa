@@ -57,30 +57,30 @@ const alt = lang === 'ar' ? '/' : '/ar/';
     </div>
   </section>
 
-  <!-- Channel -->
+  <!-- Channels: public (free), Swing and VIP (paid) -->
   <section id="channel" class="border-t border-edge">
     <div class="mx-auto max-w-6xl px-5 py-20">
-      <img src="/images/scalp-channel.webp" srcset="/images/scalp-channel-800.webp 800w, /images/scalp-channel.webp 1600w" sizes="(min-width: 1152px) 1112px, 100vw" alt={t.channel.alt} width="1600" height="900" loading="lazy" class="w-full border border-edge" />
-      <div class="mt-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
-        <div class="max-w-xl"><h2 class="text-3xl font-bold sm:text-4xl">{t.channel.title}</h2><p class="mt-3 font-display text-xl font-semibold text-gold">{t.channel.members}</p><p class="mt-3 text-ivory/80">{t.channel.p}</p></div>
-        <a href={TELEGRAM_URL} rel="noopener noreferrer" class="btn btn-gold shrink-0">{t.join}</a>
+      <h2 class="max-w-2xl text-3xl font-bold sm:text-4xl">{t.channels.title}</h2>
+      <p class="mt-3 max-w-2xl text-ivory/80">{t.channels.p}</p>
+      <div class="mt-12 grid gap-8 lg:grid-cols-3">
+        {t.channels.items.map((c) => (
+          <article id={c.id === 'vip' ? 'vip' : undefined} class="flex flex-col border border-edge bg-coal">
+            <img src={`/images/channel-${c.id}-640.webp`} srcset={`/images/channel-${c.id}-640.webp 640w, /images/channel-${c.id}-1200.webp 1200w`} sizes="(min-width: 1024px) 360px, 100vw" alt={c.alt} width="1200" height="675" loading="lazy" class="w-full border-b border-edge" />
+            <div class="flex flex-1 flex-col p-6">
+              <h3 class="text-2xl font-bold">{c.name}</h3>
+              <p class="mt-2 font-display text-2xl font-extrabold text-gold">
+                {c.was && <s class="me-3 text-lg font-semibold text-mute">{c.was}</s>}{c.price}
+              </p>
+              <p class="mt-3 text-ivory/80">{c.p}</p>
+              <ul class="mb-6 mt-4 space-y-2 text-sm">
+                {c.points.map((x) => <li class="border-s-2 border-gold ps-3">{x}</li>)}
+              </ul>
+              <a href={c.id === 'public' ? TELEGRAM_URL : VIP_URL} rel="noopener noreferrer" class="btn btn-gold mt-auto">{c.cta}</a>
+            </div>
+          </article>
+        ))}
       </div>
-    </div>
-  </section>
-
-  <!-- VIP -->
-  <section id="vip" class="border-t border-edge bg-coal">
-    <div class="mx-auto flex max-w-6xl flex-col justify-between gap-8 px-5 py-20 md:flex-row md:items-center">
-      <div class="max-w-2xl">
-        <h2 class="text-3xl font-bold sm:text-4xl">{t.vip.title}</h2>
-        <p class="mt-3 text-ivory/80">{t.vip.p}</p>
-        <ul class="mt-6 space-y-2">
-          {t.vip.items.map((i) => <li class="border-s-2 border-gold ps-4">{i}</li>)}
-        </ul>
-        <p class="mt-6 font-display text-2xl font-extrabold text-gold">{t.vip.price}</p>
-        <p class="mt-3 text-sm text-mute">{t.vip.note}</p>
-      </div>
-      <a href={VIP_URL} rel="noopener noreferrer" class="btn btn-gold shrink-0">{t.vip.cta}</a>
+      <p class="mt-8 text-sm text-mute">{t.channels.note}</p>
     </div>
   </section>
 
