@@ -90,8 +90,16 @@ Three principles: gold focus, risk first, open community.
 ### 4.4 How it works
 A real three-step sequence (join, read the idea, decide yourself), so it is numbered.
 
-### 4.5 Channel
-The Scalp Channel banner, a short description and the Telegram button.
+### 4.5 Channels
+Three cards, each with its banner, price, short description and a Telegram button:
+
+| Channel | Price shown | Button opens |
+|---|---|---|
+| Public channel | Free, "More than 15,000 members" | `PUBLIC_TELEGRAM_URL` (the public channel) |
+| Swing channel | $20 | `PUBLIC_VIP_URL` (the team's Telegram account, default `t.me/TEAM_ElSafQa`) |
+| VIP group | $50 per month, with $100 struck through | `PUBLIC_VIP_URL` |
+
+Names, prices and text are in `content.ts` under `channels`. Banners are `public/images/channel-<id>-640.webp` and `-1200.webp`.
 
 ### 4.6 Risk strip
 A highlighted warning with a red edge. Always visible on the page, not only in the footer.

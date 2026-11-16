@@ -4,7 +4,7 @@ export const content = {
   en: {
     langName: 'العربية',
     meta: { title: 'ElSafQa | Free gold scalping channel', desc: 'ElSafQa shares XAUUSD gold scalping ideas with clear entry, stop-loss and targets. Join the free Telegram channel. Trading involves risk.' },
-    nav: { about: 'About', how: 'How it works', channel: 'Channel', faq: 'FAQ', contact: 'Contact' },
+    nav: { about: 'About', how: 'How it works', channel: 'Channels', faq: 'FAQ', contact: 'Contact' },
     join: 'Join the free channel',
     login: 'Log in',
     menu: 'Menu',
@@ -18,11 +18,13 @@ export const content = {
       { h: 'Join Telegram', p: 'Open the channel and turn notifications on.' },
       { h: 'Read the idea', p: 'Each post shows the direction, entry zone, stop-loss and targets.' },
       { h: 'Decide for yourself', p: 'Size your position to your own risk limit. The decision is always yours.' } ] },
-    channel: { title: 'Scalp Channel, free', p: 'Gold scalping ideas, posted where you already are. No subscription and no card needed.', members: 'More than 15,000 members', alt: 'ElSafQa Scalp Channel: gold bars, a golden bull and an XAUUSD chart' },
-    vip: { title: 'VIP channel', p: 'For traders who want more than the free channel.', items: ['More trade ideas through the day', 'Direct customer support from our team'], price: '$50 per month', note: 'The same rule applies in VIP: every trade can lose, and we do not guarantee profits.', cta: 'Subscribe on Telegram' },
+    channels: { title: 'Our channels', p: 'Start in the free public channel. Move to a paid channel when you want more.', note: 'Paid channels follow the same rule as the free one: every trade can lose, and we do not guarantee profits.', items: [
+      { id: 'public', name: 'Public channel', price: 'Free', was: '', p: 'Gold scalping ideas, posted where you already are.', points: ['More than 15,000 members', 'No subscription and no card needed'], cta: 'Join the free channel', alt: 'ElSafQa Public Channel banner: the ElSafQa emblem, a golden bull, gold bars and an XAUUSD chart' },
+      { id: 'swing', name: 'Swing channel', price: '$20', was: '', p: 'Swing trade ideas: fewer trades, held longer than a scalp.', points: ['For traders who cannot watch the chart all day', 'Subscribe through our team on Telegram'], cta: 'Subscribe on Telegram', alt: 'ElSafQa Swing channel banner showing the price, $20' },
+      { id: 'vip', name: 'VIP group', price: '$50 per month', was: '$100', p: 'For traders who want more than the free channel.', points: ['More trade ideas through the day', 'Direct customer support from our team'], cta: 'Subscribe on Telegram', alt: 'ElSafQa VIP group banner showing the price reduced from $100 to $50' } ] },
     risk: 'Trading leveraged products such as gold carries a high risk of loss. Only trade money you can afford to lose. We do not guarantee profits.',
     faq: { title: 'Questions', items: [
-      { q: 'Is the channel really free?', a: 'Yes. Joining the Scalp Channel costs nothing.' },
+      { q: 'Is the channel really free?', a: 'Yes. Joining the public channel costs nothing. The Swing channel and the VIP group are paid.' },
       { q: 'Do you guarantee profits?', a: 'No. Nobody can. Every trade can lose, and past results do not predict future results.' },
       { q: 'Which market do you cover?', a: 'Gold against the US dollar (XAUUSD), focused on short-term scalping.' },
       { q: 'Do I need experience?', a: 'Not to read the channel, but scalping is demanding. Start small and learn risk management first.' },
@@ -37,7 +39,7 @@ export const content = {
   ar: {
     langName: 'English',
     meta: { title: 'الصفقة | قناة سكالبينج الذهب المجانية', desc: 'الصفقة تشارك أفكار سكالبينج الذهب XAUUSD بنقطة دخول ووقف خسارة وأهداف واضحة. انضم إلى قناة تيليجرام المجانية. التداول ينطوي على مخاطر.' },
-    nav: { about: 'من نحن', how: 'كيف تعمل', channel: 'القناة', faq: 'الأسئلة', contact: 'تواصل' },
+    nav: { about: 'من نحن', how: 'كيف تعمل', channel: 'القنوات', faq: 'الأسئلة', contact: 'تواصل' },
     join: 'انضم إلى القناة المجانية',
     login: 'تسجيل الدخول',
     menu: 'القائمة',
@@ -51,11 +53,13 @@ export const content = {
       { h: 'انضم إلى تيليجرام', p: 'افتح القناة وفعّل الإشعارات.' },
       { h: 'اقرأ الفكرة', p: 'كل منشور يوضح الاتجاه ومنطقة الدخول ووقف الخسارة والأهداف.' },
       { h: 'قرّر بنفسك', p: 'حدّد حجم صفقتك وفق حد المخاطرة الخاص بك. القرار دائمًا قرارك.' } ] },
-    channel: { title: 'قناة السكالب، مجانًا', p: 'أفكار سكالبينج الذهب في المكان الذي تستخدمه أصلًا. بدون اشتراك وبدون بطاقة.', members: 'أكثر من 15 ألف عضو', alt: 'قناة الصفقة للسكالب: سبائك ذهب وثور ذهبي وشارت XAUUSD' },
-    vip: { title: 'قناة VIP', p: 'لمن يريد أكثر من القناة المجانية.', items: ['أفكار تداول أكثر على مدار اليوم', 'دعم مباشر من فريقنا'], price: '50 دولارًا شهريًا', note: 'القاعدة نفسها تنطبق على VIP: أي صفقة قد تخسر، ونحن لا نضمن الأرباح.', cta: 'اشترك عبر تيليجرام' },
+    channels: { title: 'قنواتنا', p: 'ابدأ بالقناة العامة المجانية، وانتقل إلى قناة مدفوعة عندما تريد أكثر.', note: 'القنوات المدفوعة تخضع للقاعدة نفسها: أي صفقة قد تخسر، ونحن لا نضمن الأرباح.', items: [
+      { id: 'public', name: 'القناة العامة', price: 'مجانًا', was: '', p: 'أفكار سكالبينج الذهب في المكان الذي تستخدمه أصلًا.', points: ['أكثر من 15 ألف عضو', 'بدون اشتراك وبدون بطاقة'], cta: 'انضم إلى القناة المجانية', alt: 'بانر القناة العامة للصفقة: شعار الصفقة وثور ذهبي وسبائك ذهب وشارت XAUUSD' },
+      { id: 'swing', name: 'قناة السوينج', price: '20 دولارًا', was: '', p: 'أفكار تداول سوينج: صفقات أقل تُحتفظ بها مدة أطول من السكالب.', points: ['لمن لا يستطيع متابعة الشارت طوال اليوم', 'الاشتراك عن طريق فريقنا على تيليجرام'], cta: 'اشترك عبر تيليجرام', alt: 'بانر قناة السوينج للصفقة ويظهر السعر 20 دولارًا' },
+      { id: 'vip', name: 'جروب VIP', price: '50 دولارًا شهريًا', was: '100 دولار', p: 'لمن يريد أكثر من القناة المجانية.', points: ['أفكار تداول أكثر على مدار اليوم', 'دعم مباشر من فريقنا'], cta: 'اشترك عبر تيليجرام', alt: 'بانر جروب VIP للصفقة ويظهر السعر مخفضًا من 100 إلى 50 دولارًا' } ] },
     risk: 'تداول المنتجات ذات الرافعة المالية مثل الذهب ينطوي على مخاطر عالية للخسارة. تداول فقط بأموال يمكنك تحمّل خسارتها. نحن لا نضمن الأرباح.',
     faq: { title: 'أسئلة شائعة', items: [
-      { q: 'هل القناة مجانية فعلًا؟', a: 'نعم. الانضمام إلى قناة السكالب لا يكلّف شيئًا.' },
+      { q: 'هل القناة مجانية فعلًا؟', a: 'نعم. الانضمام إلى القناة العامة لا يكلّف شيئًا. قناة السوينج وجروب VIP باشتراك مدفوع.' },
       { q: 'هل تضمنون الأرباح؟', a: 'لا. لا أحد يستطيع. أي صفقة قد تخسر، والنتائج السابقة لا تتنبأ بالمستقبل.' },
       { q: 'ما السوق الذي تغطونه؟', a: 'الذهب مقابل الدولار الأمريكي (XAUUSD) مع التركيز على السكالبينج قصير المدى.' },
       { q: 'هل أحتاج إلى خبرة؟', a: 'ليس لقراءة القناة، لكن السكالبينج صعب. ابدأ بمبلغ صغير وتعلّم إدارة المخاطر أولًا.' },
