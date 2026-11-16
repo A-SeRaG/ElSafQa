@@ -37,6 +37,7 @@ import { SITE_NAME } from '../config';
       </div>
       <button type="submit" class="btn btn-gold w-full">Sign in</button>
       <p id="login-status" class="min-h-5 text-center text-sm text-signal" role="alert"></p>
+      <p class="text-center text-sm"><a href="/" class="text-mute hover:text-gold">&larr; Back to home page</a></p>
     </form>
   </main>
 
@@ -44,7 +45,7 @@ import { SITE_NAME } from '../config';
   <div id="app-view" hidden>
     <header class="sticky top-0 z-40 border-b border-edge bg-ink/90 backdrop-blur">
       <div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-3">
-        <img src="/images/wordmark.webp" alt={SITE_NAME} width="800" height="216" class="h-8 w-auto" />
+        <a href="/" aria-label={`${SITE_NAME} home page`}><img src="/images/wordmark.webp" alt={SITE_NAME} width="800" height="216" class="h-8 w-auto" /></a>
         <button id="logout" type="button" class="text-sm font-semibold text-gold hover:text-ivory">Sign out</button>
       </div>
       <div class="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-5" role="tablist" aria-label="Finance sections">

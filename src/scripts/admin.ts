@@ -655,7 +655,14 @@ $<HTMLFormElement>('#login-form').addEventListener('submit', async (e) => {
     say(status, code === 'invalid' ? 'Wrong email or password.' : explain(code));
   } finally { btn.disabled = false; }
 });
-$('#logout').addEventListener('click', async () => { await api('logout', 'POST', {}).catch(() => {}); showLogin(); });
+// Sign out, then reload so nothing from the signed-in session stays in the page.
+// If the request failed (offline), the reload shows the app again instead of pretending to be signed out.
+$('#logout').addEventListener('click', async () => {
+  const btn = $<HTMLButtonElement>('#logout');
+  btn.disabled = true;
+  await api('logout', 'POST', {}).catch(() => {});
+  location.replace('/login');
+});
 
 // Boot: go straight to the app when a valid session cookie already exists.
 fetch('/api/admin/session', { credentials: 'same-origin' })
