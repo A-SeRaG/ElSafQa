@@ -51,7 +51,8 @@ const ld = { '@context': 'https://schema.org', '@type': 'Organization', name: SI
       </nav>
       <div class="flex items-center gap-4">
         <a href={altPath} hreflang={lang === 'ar' ? 'en' : 'ar'} class="text-sm font-semibold text-gold hover:text-ivory">{t.langName}</a>
-        <a href={TELEGRAM_URL} rel="noopener noreferrer" class="btn btn-gold hidden !py-2 sm:inline-block">{t.join}</a>
+        <a href="/login" rel="nofollow" class="btn btn-line whitespace-nowrap !px-4 !py-2 text-sm">{t.login}</a>
+        <a href={TELEGRAM_URL} rel="noopener noreferrer" class="btn btn-gold whitespace-nowrap !hidden !py-2 lg:!inline-block">{t.join}</a>
       </div>
     </div>
   </header>
