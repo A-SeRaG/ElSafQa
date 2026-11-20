@@ -53,6 +53,10 @@ import { SITE_NAME } from '../config';
         <button class="tab" role="tab" id="tab-new" data-tab="new" aria-controls="panel-new" aria-selected="false">New transaction</button>
         <button class="tab" role="tab" id="tab-staff" data-tab="staff" aria-controls="panel-staff" aria-selected="false">Staff</button>
         <button class="tab" role="tab" id="tab-clients" data-tab="clients" aria-controls="panel-clients" aria-selected="false">Clients</button>
+        <!-- Staff accounts see only these three -->
+        <button class="tab" role="tab" id="tab-me" data-tab="me" data-staff aria-controls="panel-me" aria-selected="false" hidden>Profile</button>
+        <button class="tab" role="tab" id="tab-wallets" data-tab="wallets" data-staff aria-controls="panel-wallets" aria-selected="false" hidden>Wallets</button>
+        <button class="tab" role="tab" id="tab-deal" data-tab="deal" data-staff aria-controls="panel-deal" aria-selected="false" hidden>New deal</button>
       </div>
     </header>
 
@@ -164,9 +168,72 @@ import { SITE_NAME } from '../config';
           <div><label for="s-start" class="mb-1 block text-sm text-mute">Start date (optional)</label><input class="field" id="s-start" name="startDate" type="date" /></div>
           <div><label for="s-email" class="mb-1 block text-sm text-mute">Sign-in email (optional)</label><input class="field" id="s-email" name="email" type="email" maxlength="200" autocomplete="off" /></div>
           <div><label for="s-pass" class="mb-1 block text-sm text-mute">Sign-in password (min. 8 characters)</label><input class="field" id="s-pass" name="password" type="password" minlength="8" maxlength="200" autocomplete="new-password" /></div>
-          <p class="text-sm text-mute sm:col-span-2">With an email and password, the employee can sign in on this page and sees only their own card, where they record their deals.</p>
+          <p class="text-sm text-mute sm:col-span-2">With an email and password, the employee can sign in on this page. They see their profile, the client wallets where they are set as trader, and a form to record deals on those wallets.</p>
           <button type="submit" class="btn btn-gold sm:col-span-2">Add employee</button>
         </form>
+      </section>
+
+      <!-- Staff 1. Profile: profile info and deals history -->
+      <section id="panel-me" role="tabpanel" aria-labelledby="tab-me" hidden>
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <h2 class="text-xl font-semibold">My profile</h2>
+          <div>
+            <label for="me-month" class="mb-1 block text-sm text-mute">Month (salary and evaluation)</label>
+            <input class="field" id="me-month" type="month" required />
+          </div>
+        </div>
+        <div id="me-card" class="mt-6"></div>
+      </section>
+
+      <!-- Staff 2. Wallets this trader works on -->
+      <section id="panel-wallets" role="tabpanel" aria-labelledby="tab-wallets" hidden>
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <h2 class="text-xl font-semibold">My wallets</h2>
+          <p class="text-sm text-mute">Total in my wallets <b id="wallets-total" class="font-semibold text-ivory tabular-nums">&ndash;</b></p>
+        </div>
+        <div id="wallet-list" class="mt-6 grid gap-5 md:grid-cols-2"></div>
+        <p id="wallet-empty" class="mt-6 text-sm text-mute" hidden>No client wallets are assigned to you yet. The admin assigns them by setting you as the trader on a client.</p>
+      </section>
+
+      <!-- Staff 3. New deal on one of the wallets -->
+      <section id="panel-deal" role="tabpanel" aria-labelledby="tab-deal" hidden>
+        <form id="deal-form" class="mx-auto max-w-xl space-y-5 border border-edge bg-coal p-6 sm:p-8">
+          <h2 class="text-xl font-semibold">New deal</h2>
+          <div>
+            <label for="d-wallet" class="mb-1 block text-sm text-mute">Wallet</label>
+            <select class="field" id="d-wallet" name="clientId" required></select>
+            <p id="d-wallet-info" class="mt-2 min-h-5 text-sm text-mute"></p>
+          </div>
+          <div>
+            <label for="d-title" class="mb-1 block text-sm text-mute">Deal</label>
+            <input class="field" id="d-title" name="title" required maxlength="120" placeholder="e.g. XAUUSD buy" />
+          </div>
+          <fieldset>
+            <legend class="mb-2 text-sm text-mute">Result</legend>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="choice"><input class="sr-only" type="radio" name="result" value="profit" required checked /><span>Earning</span></label>
+              <label class="choice"><input class="sr-only" type="radio" name="result" value="loss" required /><span>Loss</span></label>
+            </div>
+          </fieldset>
+          <div class="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label for="d-amount" class="mb-1 block text-sm text-mute">Amount</label>
+              <input class="field" id="d-amount" name="amount" type="number" min="0.01" step="0.01" required inputmode="decimal" />
+            </div>
+            <div>
+              <label for="d-at" class="mb-1 block text-sm text-mute">Date and time</label>
+              <input class="field" id="d-at" name="at" type="datetime-local" required />
+            </div>
+          </div>
+          <div>
+            <label for="d-note" class="mb-1 block text-sm text-mute">Note (optional)</label>
+            <textarea class="field" id="d-note" name="note" rows="2" maxlength="500"></textarea>
+          </div>
+          <p class="text-sm text-mute">Saving adds the earning or loss to the selected wallet's balance and to your deals history.</p>
+          <button type="submit" class="btn btn-gold w-full">Save deal</button>
+          <p id="deal-status" class="min-h-5 text-sm" role="status"></p>
+        </form>
+        <p id="deal-empty" class="mx-auto max-w-xl text-sm text-mute" hidden>You have no wallets to trade on yet, so there is nothing to record. The admin assigns wallets by setting you as the trader on a client.</p>
       </section>
 
       <!-- 4. Clients -->
