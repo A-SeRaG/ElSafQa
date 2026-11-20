@@ -224,9 +224,15 @@ A private page for the company's finances. The site header has a "Log in" button
 | Admin | `ADMIN_EMAIL` + `ADMIN_PASSWORD` (environment variables) | All four tabs |
 | Staff | The sign-in email and password the admin sets on their employee card | Only the Staff tab, with only their own card |
 
-- A staff member can **read** their own card (targets, bonus, deduction, whether the salary was paid) and **add deals** (deal name, earning or loss, amount, date, note). They cannot edit or delete anything, and cannot see other staff, clients, transactions or the company summary. The server refuses those requests; hiding the tabs is only cosmetic.
+- A staff member sees three tabs:
+  1. **Profile**: name, job title, sign-in email, salary, bonus and deduction for the chosen month, targets and instructions scores, and their deals history (each deal shows the wallet it was on) with a running profit / loss chart.
+  2. **Wallets**: every client wallet where the client's *Trader* field is their name: balance, Live / Paused, net deposits, profit / loss, a "Wallet over time" chart, and their own deals on that wallet. Client contact details are not shown.
+  3. **New deal**: pick one of those wallets, then deal name, earning or loss, amount, date and note.
+- **Saving a deal on a wallet does two things at once:** it adds a "Trading profit" or "Trading loss" row to that client's wallet (the admin sees "by <trader>" in the client's history) and it adds the deal to the trader's history. Deleting either one deletes the other. Removing a client keeps the trader's deals but unlinks them from the wallet.
+- Staff cannot edit or delete anything, cannot record on another trader's wallet, and cannot see other staff, clients they don't trade, transactions or the company summary. The server refuses those requests; hiding the tabs is only cosmetic.
+- The admin can also add a deal from a staff card, on one of that trader's wallets or with no wallet (recorded in the history only, no wallet change).
 - The admin gives an employee a sign-in in *Add employee* or under *Edit details or sign-in* on the card. An empty email removes the sign-in. Removing the sign-in or changing the password signs that person out everywhere at once. Staff passwords are stored only as salted PBKDF2 hashes.
-- Deals are a performance record. They do not change the company capital or any client wallet.
+- Deals never change the company capital. Only the client wallet they are recorded on changes.
 - **Test staff account:** set the environment variable `TEST_STAFF_PASSWORD` in Vercel and redeploy. The account `staff.test@elsafqa.com` ("Test Staff") then exists with that password. Remove the variable and redeploy to switch its sign-in off.
 
 **Security model**

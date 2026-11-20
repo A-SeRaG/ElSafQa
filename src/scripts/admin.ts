@@ -4,10 +4,11 @@ type Staff = {
   id: number; name: string; title: string; salary: number; startDate: string;
   targetPct: number; instructionsPct: number; bonus: number; deduction: number; note: string; net: number; paidAt: string | null;
   email: string; hasLogin: boolean;
-  trading: { clients: number; live: number; managed: number } | null;
+  trading: { clients: number; live: number; managed: number; wallets: { id: number; name: string }[] } | null;
   deals: { count: number; pnl: number; points: { day: string; value: number }[]; items: Deal[] };
 };
-type Deal = { id: number; title: string; amount: number; at: string; note: string };
+type Deal = { id: number; title: string; amount: number; at: string; note: string; wallet: string };
+type Wallet = { id: number; name: string; live: boolean; deposited: number; pnl: number; wallet: number; myDeals: number; myPnl: number; points: { day: string; value: number }[] };
 let role: 'admin' | 'staff' = 'admin';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
@@ -86,11 +87,10 @@ async function showApp(as: 'admin' | 'staff') {
   loginView.hidden = true; appView.hidden = false;
   $<HTMLInputElement>('#at').value = localInput(new Date());
   $<HTMLInputElement>('#staff-month').value = thisMonth();
-  // Staff see a single tab (their own card). The server refuses everything else for them anyway.
-  for (const t of tabs) t.hidden = as === 'staff' && t.dataset.tab !== 'staff';
-  $('#staff-form').hidden = as === 'staff';
-  $('#staff-heading').textContent = as === 'staff' ? 'My work' : 'Staff';
-  openTab(as === 'staff' ? 'staff' : 'summary');
+  $<HTMLInputElement>('#me-month').value = thisMonth();
+  // Staff see only Profile, Wallets and New deal. The server refuses everything else for them anyway.
+  for (const t of tabs) t.hidden = (as === 'staff') !== ('staff' in t.dataset);
+  openTab(as === 'staff' ? 'me' : 'summary');
 }
 
 const tabs = [...document.querySelectorAll<HTMLButtonElement>('.tab')];
@@ -104,6 +104,9 @@ function openTab(name: string) {
   if (name === 'summary') refreshSummary();
   if (name === 'staff') loadStaff();
   if (name === 'clients') loadClients();
+  if (name === 'me') loadMe();
+  if (name === 'wallets') loadWallets();
+  if (name === 'deal') loadDealForm();
 }
 tabs.forEach((t) => t.addEventListener('click', () => openTab(t.dataset.tab!)));
 
@@ -320,7 +323,7 @@ function dealsBlock(s: Staff, run: (fn: () => Promise<unknown>) => Promise<void>
   line.append(h('span', '', `${d.count} deal${d.count === 1 ? '' : 's'}`), total);
 
   const box = h('details', 'border-t border-edge pt-4 text-sm');
-  box.append(h('summary', 'font-semibold text-gold hover:text-ivory', role === 'staff' ? 'Add a deal' : 'Deals: add or review'));
+  box.append(h('summary', 'font-semibold text-gold hover:text-ivory', role === 'staff' ? 'Deals history' : 'Deals: add or review'));
   box.open = role === 'staff' || openDeals.has(s.id);
   box.addEventListener('toggle', () => { if (box.open) openDeals.add(s.id); else openDeals.delete(s.id); });
 
@@ -340,14 +343,19 @@ function dealsBlock(s: Staff, run: (fn: () => Promise<unknown>) => Promise<void>
   const noteWrap = h('label', 'block text-sm text-mute', 'Note');
   const note = h('input', 'field mt-1'); note.name = 'note'; note.maxLength = 500;
   noteWrap.append(note);
+  const walletWrap = h('label', 'col-span-2 block text-sm text-mute', 'Wallet');
+  const wallet = h('select', 'field mt-1'); wallet.name = 'clientId';
+  const none = h('option', '', 'No wallet (record the deal only)'); none.value = ''; wallet.append(none);
+  for (const w of s.trading?.wallets ?? []) { const o = h('option', '', w.name); o.value = String(w.id); wallet.append(o); }
+  walletWrap.append(wallet);
   const add = h('button', 'btn btn-gold col-span-2 !py-2', 'Save deal'); add.type = 'submit';
-  f.append(titleWrap, resWrap, amount, atWrap, noteWrap, add);
+  f.append(walletWrap, titleWrap, resWrap, amount, atWrap, noteWrap, add);
   f.addEventListener('submit', (e) => {
     e.preventDefault();
     if (!f.reportValidity()) return;
     const fd = new FormData(f);
-    run(() => api(role === 'staff' ? 'deals' : `staff/${s.id}/deals`, 'POST', {
-      title: fd.get('title'), result: fd.get('result'), amount: Number(fd.get('amount')), at: new Date(String(fd.get('at'))).toISOString(), note: fd.get('note'),
+    run(() => api(`staff/${s.id}/deals`, 'POST', {
+      clientId: Number(fd.get('clientId')) || null, title: fd.get('title'), result: fd.get('result'), amount: Number(fd.get('amount')), at: new Date(String(fd.get('at'))).toISOString(), note: fd.get('note'),
     }));
   });
 
@@ -356,7 +364,7 @@ function dealsBlock(s: Staff, run: (fn: () => Promise<unknown>) => Promise<void>
   for (const deal of d.items) {
     const li = h('li', 'flex items-baseline justify-between gap-3 border-t border-edge py-2');
     const left = h('div');
-    left.append(h('p', 'font-semibold', deal.title), h('p', 'text-xs text-mute', [fmtDate(deal.at), deal.note].filter(Boolean).join(' \u00b7 ')));
+    left.append(h('p', 'font-semibold', deal.title), h('p', 'text-xs text-mute', [fmtDate(deal.at), deal.wallet && `Wallet: ${deal.wallet}`, deal.note].filter(Boolean).join(' \u00b7 ')));
     const right = h('div', 'flex items-baseline gap-3 whitespace-nowrap');
     right.append(h('span', `font-semibold tabular-nums ${deal.amount > 0 ? 'pos' : 'neg'}`, signed(deal.amount)));
     if (role === 'admin') {
@@ -367,20 +375,129 @@ function dealsBlock(s: Staff, run: (fn: () => Promise<unknown>) => Promise<void>
     li.append(left, right);
     list.append(li);
   }
-  box.append(f, list);
+  if (role === 'admin') box.append(f);
+  box.append(list);
   return [line, chartBlock('Deals profit / loss over time', toSeries(d.points), { zero: true, signed: true }), box];
 }
 
 async function loadStaff() {
   const month = monthInput.value || thisMonth();
   try {
-    const data = await api<{ items: Staff[]; currency?: string }>(role === 'staff' ? `me?month=${month}` : `staff?month=${month}`);
+    const data = await api<{ items: Staff[]; currency?: string }>(`staff?month=${month}`);
     if (data.currency) currency = data.currency;
     $('#staff-list').replaceChildren(...data.items.map((s) => staffCard(s, month)));
     $('#staff-empty').hidden = data.items.length > 0;
     redrawCharts();
   } catch (e) { report(e); }
 }
+
+/* ---------- staff: profile, wallets, new deal ---------- */
+const meMonth = $<HTMLInputElement>('#me-month');
+meMonth.addEventListener('change', loadMe);
+
+async function loadMe() {
+  const month = meMonth.value || thisMonth();
+  try {
+    const data = await api<{ items: Staff[]; currency?: string }>(`me?month=${month}`);
+    if (data.currency) currency = data.currency;
+    const s = data.items[0];
+    const card = staffCard(s, month);
+    if (s.email) card.querySelector('h3')!.after(h('p', 'text-xs text-mute', s.email));
+    $('#me-card').replaceChildren(card);
+    redrawCharts();
+  } catch (e) { report(e); }
+}
+
+let myWallets: Wallet[] = [];
+async function fetchWallets() {
+  const data = await api<{ items: Wallet[]; currency?: string }>('me/wallets');
+  if (data.currency) currency = data.currency;
+  myWallets = data.items;
+  return myWallets;
+}
+
+function walletCard(w: Wallet) {
+  const card = h('article', 'space-y-4 border border-edge bg-coal p-6');
+  const head = h('div', 'flex items-start justify-between gap-4');
+  const who = h('div');
+  who.append(h('h3', 'text-lg font-semibold', w.name), h('span', `badge mt-2 ${w.live ? 'badge-live' : ''}`, w.live ? 'Live' : 'Paused'));
+  const bal = h('div', 'text-end');
+  bal.append(h('p', 'text-xs uppercase tracking-widest text-mute', 'Wallet'), h('p', 'font-display text-2xl font-extrabold text-gold tabular-nums', fmt(w.wallet)));
+  head.append(who, bal);
+
+  const split = h('p', 'flex flex-wrap gap-x-6 gap-y-1 text-sm text-mute');
+  const dep = h('span', '', 'Net deposits '); dep.append(h('b', 'font-semibold text-ivory tabular-nums', fmt(w.deposited)));
+  const pnl = h('span', '', 'Profit / loss '); pnl.append(h('b', `font-semibold tabular-nums ${w.pnl > 0 ? 'pos' : w.pnl < 0 ? 'neg' : 'text-ivory'}`, signed(w.pnl)));
+  split.append(dep, pnl);
+
+  const mine = h('p', 'border-t border-edge pt-4 text-sm text-mute', `My deals on this wallet: ${w.myDeals} `);
+  mine.append(h('b', `font-semibold tabular-nums ${w.myPnl > 0 ? 'pos' : w.myPnl < 0 ? 'neg' : 'text-ivory'}`, `(${signed(w.myPnl)})`));
+
+  const add = h('button', 'btn btn-line w-full !py-2', 'Add a deal on this wallet');
+  add.type = 'button';
+  add.addEventListener('click', () => { pendingWallet = w.id; openTab('deal'); });
+
+  card.append(head, split, chartBlock('Wallet over time', toSeries(w.points), {}), mine, add);
+  return card;
+}
+
+async function loadWallets() {
+  try {
+    const items = await fetchWallets();
+    $('#wallet-list').replaceChildren(...items.map(walletCard));
+    $('#wallet-empty').hidden = items.length > 0;
+    $('#wallets-total').textContent = fmt(items.reduce((sum, w) => sum + w.wallet, 0));
+    redrawCharts();
+  } catch (e) { report(e); }
+}
+
+let pendingWallet = 0; // wallet chosen with "Add a deal on this wallet"
+const dealForm = $<HTMLFormElement>('#deal-form');
+const walletSelect = $<HTMLSelectElement>('#d-wallet');
+function showWalletInfo() {
+  const w = myWallets.find((x) => x.id === Number(walletSelect.value));
+  $('#d-wallet-info').textContent = w ? `Balance ${fmt(w.wallet)} · ${w.live ? 'Live' : 'Paused'}` : '';
+}
+walletSelect.addEventListener('change', showWalletInfo);
+
+async function loadDealForm() {
+  try {
+    const keep = pendingWallet || Number(walletSelect.value);
+    pendingWallet = 0;
+    const items = await fetchWallets();
+    walletSelect.replaceChildren(...items.map((w) => { const o = h('option', '', `${w.name}${w.live ? '' : ' (paused)'}`); o.value = String(w.id); return o; }));
+    if (items.some((w) => w.id === keep)) walletSelect.value = String(keep);
+    dealForm.hidden = items.length === 0;
+    $('#deal-empty').hidden = items.length > 0;
+    const at = $<HTMLInputElement>('#d-at');
+    if (!at.value) at.value = localInput(new Date());
+    showWalletInfo();
+  } catch (e) { report(e); }
+}
+
+dealForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const status = $('#deal-status');
+  if (!dealForm.reportValidity()) return;
+  const fd = new FormData(dealForm);
+  const btn = dealForm.querySelector<HTMLButtonElement>('button[type=submit]')!;
+  btn.disabled = true;
+  try {
+    const clientId = Number(fd.get('clientId'));
+    await api('deals', 'POST', {
+      clientId, title: fd.get('title'), result: fd.get('result'), amount: Number(fd.get('amount')),
+      at: new Date(String(fd.get('at'))).toISOString(), note: fd.get('note'),
+    });
+    for (const id of ['#d-title', '#d-amount', '#d-note']) $<HTMLInputElement>(id).value = '';
+    $<HTMLInputElement>('#d-at').value = localInput(new Date());
+    await loadDealForm();
+    walletSelect.value = String(clientId);
+    showWalletInfo();
+    const w = myWallets.find((x) => x.id === clientId);
+    say(status, `Saved.${w ? ` ${w.name} is now ${fmt(w.wallet)}.` : ''}`, 'ok');
+  } catch (err) { report(err, status); }
+  finally { btn.disabled = false; }
+});
 
 $<HTMLFormElement>('#staff-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -498,7 +615,7 @@ window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer
 
 /* ---------- clients ---------- */
 type Client = { id: number; name: string; contact: string; trader: string; live: boolean; deposited: number; pnl: number; wallet: number; points: { day: string; value: number }[] };
-type Entry = { id: number; kind: 'deposit' | 'withdrawal' | 'profit' | 'loss'; amount: number; at: string; note: string };
+type Entry = { id: number; kind: 'deposit' | 'withdrawal' | 'profit' | 'loss'; amount: number; at: string; note: string; by: string };
 const ENTRY_LABEL = { deposit: 'Deposit', withdrawal: 'Withdrawal', profit: 'Trading profit', loss: 'Trading loss' };
 const openHistory = new Set<number>();
 const signed = (n: number) => `${n < 0 ? '−' : n > 0 ? '+' : ''}${fmt(Math.abs(n))}`;
@@ -512,7 +629,7 @@ async function fillHistory(c: Client, list: HTMLElement, status: HTMLElement) {
       const plus = e.kind === 'deposit' || e.kind === 'profit';
       const li = h('li', 'flex items-baseline justify-between gap-3 border-t border-edge py-2');
       const left = h('div');
-      left.append(h('p', 'font-semibold', ENTRY_LABEL[e.kind]), h('p', 'text-xs text-mute', [fmtDate(e.at), e.note].filter(Boolean).join(' · ')));
+      left.append(h('p', 'font-semibold', ENTRY_LABEL[e.kind]), h('p', 'text-xs text-mute', [fmtDate(e.at), e.by && `by ${e.by}`, e.note].filter(Boolean).join(' · ')));
       const right = h('div', 'flex items-baseline gap-3 whitespace-nowrap');
       const del = h('button', 'text-xs text-mute hover:text-signal', 'Delete');
       del.type = 'button';
