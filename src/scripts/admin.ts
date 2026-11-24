@@ -6,12 +6,12 @@ type Staff = {
   payType: 'fixed' | 'commission'; commissionPct: number; monthPnl: number; base: number;
   adjustments: { id: number; kind: 'bonus' | 'deduction'; amount: number; reason: string }[];
   email: string; hasLogin: boolean;
-  trading: { clients: number; live: number; managed: number; wallets: { id: number; name: string }[] } | null;
+  trading: { clients: number; live: number; managed: number; wallets: { id: number; name: string; stocks: number[] }[] } | null;
   deals: { count: number; pnl: number; points: { day: string; value: number }[]; items: Deal[] };
 };
 type Deal = { id: number; title: string; side: string; amount: number; at: string; note: string; wallet: string };
 type Instrument = { id: number; symbol: string };
-type Wallet = { id: number; name: string; live: boolean; deposited: number; pnl: number; wallet: number; myDeals: number; myPnl: number; points: { day: string; value: number }[] };
+type Wallet = { id: number; name: string; live: boolean; stocks: number[]; deposited: number; pnl: number; wallet: number; myDeals: number; myPnl: number; points: { day: string; value: number }[] };
 let role: 'admin' | 'staff' = 'admin';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
@@ -32,6 +32,7 @@ const ERRORS: Record<string, string> = {
   email_taken: 'That sign-in email is already used by another account.',
   weak_password: 'A sign-in password needs an email and at least 8 characters.',
   forbidden: 'Your account is not allowed to do that.',
+  stock_not_on_wallet: "That stock isn't enabled on this wallet. The admin sets each wallet's stocks in the Clients tab.",
 };
 const explain = (code: string) => ERRORS[code] ?? 'Something went wrong. Please try again.';
 
@@ -416,10 +417,13 @@ async function fetchInstruments() {
   instruments = (await api<{ items: Instrument[] }>('instruments')).items;
   return instruments;
 }
-function fillInstrumentSelect(sel: HTMLSelectElement) {
+// The stocks a wallet allows: its own list, or the whole deal list when none were chosen for it.
+const stocksFor = (ids: number[] | undefined) => (ids?.length ? instruments.filter((i) => ids.includes(i.id)) : instruments);
+function fillInstrumentSelect(sel: HTMLSelectElement, list: Instrument[] = instruments) {
   const keep = sel.value;
-  sel.replaceChildren(...instruments.map((i) => { const o = h('option', '', i.symbol); o.value = String(i.id); return o; }));
-  if (instruments.some((i) => String(i.id) === keep)) sel.value = keep;
+  sel.replaceChildren(...list.map((i) => { const o = h('option', '', i.symbol); o.value = String(i.id); return o; }));
+  if (list.some((i) => String(i.id) === keep)) sel.value = keep;
+  return list.length;
 }
 
 // Deals: what the person traded and what each deal earned or lost.
@@ -444,8 +448,11 @@ function dealsBlock(s: Staff, run: (fn: () => Promise<unknown>) => Promise<void>
       w.append(el); return w;
     };
     const wallet = select('Wallet', 'clientId', [['', 'No wallet (record the deal only)'], ...(s.trading?.wallets ?? []).map((w): [string, string] => [String(w.id), w.name])], true);
-    const stock = select('Stock', 'instrumentId', instruments.map((i): [string, string] => [String(i.id), i.symbol]));
-    stock.querySelector('select')!.required = true;
+    const stock = select('Stock', 'instrumentId', []);
+    const stockSel = stock.querySelector('select')!; stockSel.required = true;
+    const walletSel = wallet.querySelector('select')!;
+    const syncStocks = () => fillInstrumentSelect(stockSel, stocksFor(s.trading?.wallets.find((w) => String(w.id) === walletSel.value)?.stocks));
+    walletSel.addEventListener('change', syncStocks); syncStocks();
     const side = select('Buy / Sell', 'side', [['buy', 'Buy'], ['sell', 'Sell']]);
     const res = select('Result', 'result', [['profit', 'Earning'], ['loss', 'Loss']]);
     const amount = numField('Amount', 'amount', 0);
@@ -566,6 +573,10 @@ const walletSelect = $<HTMLSelectElement>('#d-wallet');
 function showWalletInfo() {
   const w = myWallets.find((x) => x.id === Number(walletSelect.value));
   $('#d-wallet-info').textContent = w ? `Balance ${fmt(w.wallet)} · ${w.live ? 'Live' : 'Paused'}` : '';
+  // Only the stocks this wallet allows.
+  const n = fillInstrumentSelect($<HTMLSelectElement>('#d-stock'), stocksFor(w?.stocks));
+  $('#d-stock-none').hidden = n > 0;
+  dealForm.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled = n === 0;
 }
 walletSelect.addEventListener('change', showWalletInfo);
 
@@ -574,7 +585,6 @@ async function loadDealForm() {
     const keep = pendingWallet || Number(walletSelect.value);
     pendingWallet = 0;
     const [items] = await Promise.all([fetchWallets(), fetchInstruments()]);
-    fillInstrumentSelect($<HTMLSelectElement>('#d-stock'));
     walletSelect.replaceChildren(...items.map((w) => { const o = h('option', '', `${w.name}${w.live ? '' : ' (paused)'}`); o.value = String(w.id); return o; }));
     if (items.some((w) => w.id === keep)) walletSelect.value = String(keep);
     const ready = items.length > 0 && instruments.length > 0;
@@ -762,7 +772,7 @@ let resizeTimer = 0;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = window.setTimeout(redrawCharts, 150); });
 
 /* ---------- clients ---------- */
-type Client = { id: number; name: string; contact: string; trader: string; live: boolean; deposited: number; pnl: number; wallet: number; points: { day: string; value: number }[] };
+type Client = { id: number; name: string; contact: string; trader: string; live: boolean; stocks: number[]; deposited: number; pnl: number; wallet: number; points: { day: string; value: number }[] };
 type Entry = { id: number; kind: 'deposit' | 'withdrawal' | 'profit' | 'loss'; amount: number; at: string; note: string; by: string };
 const ENTRY_LABEL = { deposit: 'Deposit', withdrawal: 'Withdrawal', profit: 'Trading profit', loss: 'Trading loss' };
 const openHistory = new Set<number>();
@@ -871,13 +881,37 @@ function clientCard(c: Client) {
   confirmClick(remove, () => run(() => api(`clients/${c.id}`, 'DELETE')));
   edit.append(df, remove);
 
-  card.append(head, split, chartBlock('Wallet over time', toSeries(c.points), {}), trader, hist, edit, status);
+  // Stocks this wallet may be traded in.
+  const stocksBox = h('details', 'border-t border-edge pt-4 text-sm');
+  const chosen = instruments.filter((i) => c.stocks.includes(i.id)).map((i) => i.symbol);
+  stocksBox.append(h('summary', 'text-mute hover:text-ivory', `Stocks on this wallet: ${chosen.length ? chosen.join(', ') : 'all stocks in the deal list'}`));
+  const sf = h('form', 'mt-3 space-y-3');
+  if (!instruments.length) sf.append(h('p', 'text-mute', 'The deal list is empty. Add stocks at the top of the Staff tab first.'));
+  else {
+    const boxes = h('div', 'flex flex-wrap gap-2');
+    for (const i of instruments) {
+      const l = h('label', 'flex items-center gap-2 border border-edge px-3 py-2');
+      const cb = h('input', 'h-4 w-4 accent-gold'); cb.type = 'checkbox'; cb.name = 'stock'; cb.value = String(i.id); cb.checked = c.stocks.includes(i.id);
+      l.append(cb, h('span', 'font-semibold', i.symbol));
+      boxes.append(l);
+    }
+    const save = h('button', 'btn btn-line !py-2', 'Save stocks'); save.type = 'submit';
+    sf.append(boxes, h('p', 'text-xs text-mute', 'Traders can pick only the ticked stocks for this wallet. Tick none to allow every stock in the deal list.'), save);
+  }
+  sf.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const ids = [...sf.querySelectorAll<HTMLInputElement>('input[name=stock]:checked')].map((x) => Number(x.value));
+    run(() => api(`clients/${c.id}/stocks`, 'PUT', { ids }));
+  });
+  stocksBox.append(sf);
+
+  card.append(head, split, chartBlock('Wallet over time', toSeries(c.points), {}), trader, stocksBox, hist, edit, status);
   return card;
 }
 
 async function loadClients() {
   try {
-    const [data, staff] = await Promise.all([api<{ items: Client[] }>('clients'), api<{ items: { id: number; name: string }[] }>('staff/names')]);
+    const [data, staff] = await Promise.all([api<{ items: Client[] }>('clients'), api<{ items: { id: number; name: string }[] }>('staff/names'), fetchInstruments()]);
     $('#client-list').replaceChildren(...data.items.map(clientCard));
     $('#client-empty').hidden = data.items.length > 0;
     redrawCharts();
