@@ -3,11 +3,14 @@ type Tx = { id: number; kind: 'in' | 'out'; amount: number; at: string; purpose:
 type Staff = {
   id: number; name: string; title: string; salary: number; startDate: string;
   targetPct: number; instructionsPct: number; bonus: number; deduction: number; note: string; net: number; paidAt: string | null;
+  payType: 'fixed' | 'commission'; commissionPct: number; monthPnl: number; base: number;
+  adjustments: { id: number; kind: 'bonus' | 'deduction'; amount: number; reason: string }[];
   email: string; hasLogin: boolean;
   trading: { clients: number; live: number; managed: number; wallets: { id: number; name: string }[] } | null;
   deals: { count: number; pnl: number; points: { day: string; value: number }[]; items: Deal[] };
 };
-type Deal = { id: number; title: string; amount: number; at: string; note: string; wallet: string };
+type Deal = { id: number; title: string; side: string; amount: number; at: string; note: string; wallet: string };
+type Instrument = { id: number; symbol: string };
 type Wallet = { id: number; name: string; live: boolean; deposited: number; pnl: number; wallet: number; myDeals: number; myPnl: number; points: { day: string; value: number }[] };
 let role: 'admin' | 'staff' = 'admin';
 
@@ -74,6 +77,7 @@ function fmt(n: number) {
 }
 const pad = (n: number) => String(n).padStart(2, '0');
 const localInput = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const monthName = (m: string) => new Date(`${m}-01T12:00:00`).toLocaleString('en', { month: 'long', year: 'numeric' });
 const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
 const fmtDate = (iso: string) => new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 function say(el: HTMLElement, text: string, tone: 'ok' | 'err' | 'mute' = 'err') {
@@ -239,7 +243,18 @@ function meter(label: string, value: number) {
   return wrap;
 }
 
+// One line of the pay breakdown: label on the left, amount on the right.
+function payLine(label: string, amount: string, cls = '') {
+  const li = h('li', 'flex items-baseline justify-between gap-3 py-1');
+  li.append(h('span', 'text-mute', label), h('span', `font-semibold tabular-nums ${cls}`, amount));
+  return li;
+}
+const baseLabel = (s: Staff) => (s.payType === 'commission'
+  ? `${s.commissionPct}% of ${fmt(Math.max(0, s.monthPnl))} net profit`
+  : 'Monthly salary');
+
 function staffCard(s: Staff, month: string) {
+  const admin = role === 'admin';
   const card = h('article', 'space-y-4 border border-edge bg-coal p-6');
   const head = h('div', 'flex items-start justify-between gap-4');
   const who = h('div');
@@ -247,70 +262,16 @@ function staffCard(s: Staff, month: string) {
   if (s.startDate) who.append(h('p', 'text-xs text-mute', `Since ${s.startDate}`));
   const pay = h('div', 'text-end');
   pay.append(h('p', 'text-xs uppercase tracking-widest text-mute', 'Net pay'), h('p', 'font-display text-xl font-extrabold tabular-nums', fmt(s.net)),
-    h('p', 'text-xs text-mute', `Base ${fmt(s.salary)}`));
+    h('p', 'text-xs text-mute', s.payType === 'commission' ? `${s.commissionPct}% of profit` : `Salary ${fmt(s.salary)}`));
   head.append(who, pay);
 
   const status = h('p', 'min-h-5 text-sm');
-  const run = async (fn: () => Promise<unknown>) => { try { await fn(); await loadStaff(); } catch (e) { report(e, status); } };
-
-  // Monthly evaluation
-  const review = h('form', 'grid grid-cols-2 gap-3 border-t border-edge pt-4');
-  const note = h('label', 'col-span-2 block text-sm text-mute', 'Evaluation note');
-  const noteInput = h('textarea', 'field mt-1');
-  noteInput.name = 'note'; noteInput.rows = 2; noteInput.maxLength = 1000; noteInput.value = s.note;
-  note.append(noteInput);
-  const save = h('button', 'btn btn-line col-span-2 !py-2', 'Save evaluation');
-  save.type = 'submit';
-  review.append(
-    numField('Targets achieved %', 'targetPct', s.targetPct, 100), numField('Followed instructions %', 'instructionsPct', s.instructionsPct, 100),
-    numField('Bonus', 'bonus', s.bonus), numField('Deduction', 'deduction', s.deduction), note, save,
-  );
-  review.addEventListener('submit', (e) => {
-    e.preventDefault();
-    if (!review.reportValidity()) return;
-    const fd = new FormData(review);
-    run(() => api(`staff/${s.id}/review`, 'PUT', {
-      month, targetPct: Number(fd.get('targetPct')), instructionsPct: Number(fd.get('instructionsPct')),
-      bonus: Number(fd.get('bonus')), deduction: Number(fd.get('deduction')), note: fd.get('note'),
-    }));
-  });
-
-  // Salary payment + edit/remove
-  const actions = h('div', 'flex flex-wrap items-center justify-between gap-3 border-t border-edge pt-4 text-sm');
-  if (s.paidAt) actions.append(h('span', 'pos font-semibold', `Paid ${fmtDate(s.paidAt)}`));
-  else {
-    const payBtn = h('button', 'font-semibold text-gold hover:text-ivory', 'Record salary payment');
-    payBtn.type = 'button';
-    confirmClick(payBtn, () => run(() => api(`staff/${s.id}/pay`, 'POST', { month })));
-    actions.append(payBtn);
-  }
-  const remove = h('button', 'text-mute hover:text-signal', 'Remove employee');
-  remove.type = 'button';
-  confirmClick(remove, () => run(() => api(`staff/${s.id}`, 'DELETE')));
-  actions.append(remove);
-
-  const edit = h('details', 'border-t border-edge pt-4 text-sm');
-  edit.append(h('summary', 'text-mute hover:text-ivory', `Edit details or sign-in (${s.hasLogin ? s.email : 'no sign-in yet'})`));
-  const ef = h('form', 'mt-3 grid grid-cols-2 gap-3');
-  const text = (label: string, name: string, value: string, type = 'text') => {
-    const w = h('label', 'block text-sm text-mute', label);
-    const i = h('input', 'field mt-1'); i.name = name; i.type = type; i.required = type === 'text'; i.maxLength = type === 'text' ? 80 : 200; i.value = value;
-    if (type === 'password') { i.minLength = 8; i.autocomplete = 'new-password'; }
-    w.append(i); return w;
+  const run = async (fn: () => Promise<unknown>) => {
+    try { await fn(); await (admin ? loadStaff() : loadMe()); } catch (e) { report(e, status); }
   };
-  const efSave = h('button', 'btn btn-line col-span-2 !py-2', 'Save');
-  efSave.type = 'submit';
-  ef.append(text('Name', 'name', s.name), text('Job title', 'title', s.title), numField('Monthly salary', 'salary', s.salary),
-    text('Sign-in email (empty = no sign-in)', 'email', s.email, 'email'), text(s.hasLogin ? 'New password (empty = keep)' : 'Sign-in password', 'password', '', 'password'), efSave);
-  ef.addEventListener('submit', (e) => {
-    e.preventDefault();
-    if (!ef.reportValidity()) return;
-    const fd = new FormData(ef);
-    run(() => api(`staff/${s.id}`, 'PUT', { name: fd.get('name'), title: fd.get('title'), salary: Number(fd.get('salary')), startDate: s.startDate, email: fd.get('email'), password: fd.get('password') }));
-  });
-  edit.append(ef);
 
   card.append(head, meter('Targets achieved', s.targetPct), meter('Followed instructions', s.instructionsPct));
+
   // Clients this person trades for (admin view only).
   if (s.trading) {
     const t = s.trading;
@@ -320,17 +281,145 @@ function staffCard(s: Staff, month: string) {
       h('span', '', `${t.clients} client${t.clients === 1 ? '' : 's'}`), managing);
     card.append(line);
   }
-  card.append(...dealsBlock(s, run));
-  if (role === 'staff') {
-    // Read-only evaluation for the staff member.
-    const info = h('div', 'space-y-1 border-t border-edge pt-4 text-sm text-mute');
-    info.append(h('p', '', `Bonus ${fmt(s.bonus)} \u00b7 Deduction ${fmt(s.deduction)}`), h('p', '', s.paidAt ? `Salary paid ${fmtDate(s.paidAt)}` : 'Salary for this month not recorded as paid yet'));
-    if (s.note) info.append(h('p', 'text-ivory', s.note));
-    card.append(info, status);
+
+  // Pay for the month: base, each bonus and deduction with its reason, net.
+  const payBox = h('div', 'border-t border-edge pt-4 text-sm');
+  payBox.append(h('p', 'mb-2 font-semibold text-gold', `Pay for ${monthName(month)}`));
+  const lines = h('ul', '');
+  lines.append(payLine(baseLabel(s), fmt(s.base)));
+  for (const a of s.adjustments) {
+    const li = payLine(`${a.kind === 'bonus' ? 'Bonus' : 'Deduction'}${a.reason ? `: ${a.reason}` : ''}`, `${a.kind === 'bonus' ? '+' : '−'}${fmt(a.amount)}`, a.kind === 'bonus' ? 'pos' : 'neg');
+    if (admin && !s.paidAt) {
+      const del = h('button', 'ms-3 text-xs font-normal text-mute hover:text-signal', 'Delete'); del.type = 'button';
+      confirmClick(del, () => run(() => api(`adjustments/${a.id}`, 'DELETE')));
+      li.lastElementChild!.append(del);
+    }
+    lines.append(li);
+  }
+  const total = payLine('Net pay', fmt(s.net), 'text-ivory');
+  total.classList.add('border-t', 'border-edge', 'mt-1', 'pt-2');
+  lines.append(total);
+  payBox.append(lines, h('p', 'mt-2 text-xs text-mute', s.paidAt ? `Paid ${fmtDate(s.paidAt)}` : 'Not recorded as paid yet'));
+
+  if (admin && !s.paidAt) {
+    const af = h('form', 'mt-3 grid grid-cols-2 gap-3');
+    const kindWrap = h('label', 'block text-sm text-mute', 'Add');
+    const kind = h('select', 'field mt-1'); kind.name = 'kind';
+    for (const [v, label] of [['bonus', 'Bonus'], ['deduction', 'Deduction']]) { const o = h('option', '', label); o.value = v; kind.append(o); }
+    kindWrap.append(kind);
+    const amount = numField('Amount', 'amount', 0);
+    const ai = amount.querySelector('input')!; ai.value = ''; ai.min = '0.01';
+    const reasonWrap = h('label', 'col-span-2 block text-sm text-mute', 'Reason');
+    const reason = h('input', 'field mt-1'); reason.name = 'reason'; reason.maxLength = 200; reason.placeholder = 'e.g. Hit the monthly target';
+    reasonWrap.append(reason);
+    const add = h('button', 'btn btn-line col-span-2 !py-2', 'Add to this month'); add.type = 'submit';
+    af.append(kindWrap, amount, reasonWrap, add);
+    af.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!af.reportValidity()) return;
+      const fd = new FormData(af);
+      run(() => api(`staff/${s.id}/adjustments`, 'POST', { month, kind: fd.get('kind'), amount: Number(fd.get('amount')), reason: fd.get('reason') }));
+    });
+    payBox.append(af);
+  }
+  card.append(payBox);
+
+  if (!admin) {
+    if (s.note) card.append(h('p', 'border-t border-edge pt-4 text-sm text-ivory', s.note));
+    card.append(...dealsBlock(s, run), status);
     return card;
   }
-  card.append(review, actions, edit, status);
+
+  // Evaluation for the month: the two scores and a note.
+  const review = h('form', 'grid grid-cols-2 gap-3 border-t border-edge pt-4');
+  review.append(h('p', 'col-span-2 text-sm font-semibold text-gold', `Evaluation for ${monthName(month)}`));
+  const note = h('label', 'col-span-2 block text-sm text-mute', 'Evaluation note');
+  const noteInput = h('textarea', 'field mt-1');
+  noteInput.name = 'note'; noteInput.rows = 2; noteInput.maxLength = 1000; noteInput.value = s.note;
+  note.append(noteInput);
+  const save = h('button', 'btn btn-line col-span-2 !py-2', 'Save evaluation');
+  save.type = 'submit';
+  review.append(numField('Targets achieved %', 'targetPct', s.targetPct, 100), numField('Followed instructions %', 'instructionsPct', s.instructionsPct, 100), note, save);
+  review.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!review.reportValidity()) return;
+    const fd = new FormData(review);
+    run(() => api(`staff/${s.id}/review`, 'PUT', { month, targetPct: Number(fd.get('targetPct')), instructionsPct: Number(fd.get('instructionsPct')), note: fd.get('note') }));
+  });
+
+  // Salary payment + remove
+  const actions = h('div', 'flex flex-wrap items-center justify-between gap-3 border-t border-edge pt-4 text-sm');
+  if (s.paidAt) actions.append(h('span', 'pos font-semibold', `Paid ${fmtDate(s.paidAt)}`));
+  else {
+    const payBtn = h('button', 'font-semibold text-gold hover:text-ivory', `Record salary payment (${fmt(s.net)})`);
+    payBtn.type = 'button';
+    confirmClick(payBtn, () => run(() => api(`staff/${s.id}/pay`, 'POST', { month })));
+    actions.append(payBtn);
+  }
+  const remove = h('button', 'text-mute hover:text-signal', 'Remove employee');
+  remove.type = 'button';
+  confirmClick(remove, () => run(() => api(`staff/${s.id}`, 'DELETE')));
+  actions.append(remove);
+
+  // Edit details, pay and sign-in
+  const edit = h('details', 'border-t border-edge pt-4 text-sm');
+  edit.append(h('summary', 'text-mute hover:text-ivory', `Edit details, pay or sign-in (${s.hasLogin ? s.email : 'no sign-in yet'})`));
+  const ef = h('form', 'mt-3 grid grid-cols-2 gap-3');
+  const text = (label: string, name: string, value: string, type = 'text') => {
+    const w = h('label', 'block text-sm text-mute', label);
+    const i = h('input', 'field mt-1'); i.name = name; i.type = type; i.required = type === 'text'; i.maxLength = type === 'text' ? 80 : 200; i.value = value;
+    if (type === 'password') { i.minLength = 8; i.autocomplete = 'new-password'; }
+    w.append(i); return w;
+  };
+  const efSave = h('button', 'btn btn-line col-span-2 !py-2', 'Save');
+  efSave.type = 'submit';
+  const payFields = payTypeFields(s.payType, s.salary, s.commissionPct);
+  ef.append(text('Name', 'name', s.name), text('Job title', 'title', s.title), ...payFields,
+    text('Sign-in email (empty = no sign-in)', 'email', s.email, 'email'), text(s.hasLogin ? 'New password (empty = keep)' : 'Sign-in password', 'password', '', 'password'), efSave);
+  ef.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!ef.reportValidity()) return;
+    const fd = new FormData(ef);
+    run(() => api(`staff/${s.id}`, 'PUT', {
+      name: fd.get('name'), title: fd.get('title'), payType: fd.get('payType'), salary: Number(fd.get('salary') || 0), commissionPct: Number(fd.get('commissionPct') || 0),
+      startDate: s.startDate, email: fd.get('email'), password: fd.get('password'),
+    }));
+  });
+  edit.append(ef);
+
+  card.append(...dealsBlock(s, run), review, actions, edit, status);
   return card;
+}
+
+// Pay type select, plus the field that goes with it (salary for fixed pay, rate for commission).
+function payTypeFields(type: string, salary: number, pctValue: number) {
+  const typeWrap = h('label', 'col-span-2 block text-sm text-mute', 'Pay');
+  const sel = h('select', 'field mt-1'); sel.name = 'payType';
+  for (const [v, label] of [['fixed', 'Fixed monthly salary'], ['commission', 'Percentage of monthly net profit (live trader)']]) { const o = h('option', '', label); o.value = v; sel.append(o); }
+  sel.value = type;
+  typeWrap.append(sel);
+  const sal = numField('Monthly salary', 'salary', salary);
+  const rate = numField('Share of net profit %', 'commissionPct', pctValue, 100);
+  rate.querySelector('input')!.step = '0.01';
+  const sync = () => {
+    const c = sel.value === 'commission';
+    sal.hidden = c; rate.hidden = !c;
+    sal.querySelector('input')!.required = !c; rate.querySelector('input')!.required = c;
+  };
+  sel.addEventListener('change', sync); sync();
+  return [typeWrap, sal, rate];
+}
+
+/* ---------- the deal list (stocks) ---------- */
+let instruments: Instrument[] = [];
+async function fetchInstruments() {
+  instruments = (await api<{ items: Instrument[] }>('instruments')).items;
+  return instruments;
+}
+function fillInstrumentSelect(sel: HTMLSelectElement) {
+  const keep = sel.value;
+  sel.replaceChildren(...instruments.map((i) => { const o = h('option', '', i.symbol); o.value = String(i.id); return o; }));
+  if (instruments.some((i) => String(i.id) === keep)) sel.value = keep;
 }
 
 // Deals: what the person traded and what each deal earned or lost.
@@ -346,44 +435,45 @@ function dealsBlock(s: Staff, run: (fn: () => Promise<unknown>) => Promise<void>
   box.open = role === 'staff' || openDeals.has(s.id);
   box.addEventListener('toggle', () => { if (box.open) openDeals.add(s.id); else openDeals.delete(s.id); });
 
-  const f = h('form', 'mt-3 grid grid-cols-2 gap-3');
-  const titleWrap = h('label', 'col-span-2 block text-sm text-mute', 'Deal');
-  const title = h('input', 'field mt-1'); title.name = 'title'; title.required = true; title.maxLength = 120; title.placeholder = 'e.g. XAUUSD buy';
-  titleWrap.append(title);
-  const resWrap = h('label', 'block text-sm text-mute', 'Result');
-  const res = h('select', 'field mt-1'); res.name = 'result';
-  for (const [v, label] of [['profit', 'Earning'], ['loss', 'Loss']]) { const o = h('option', '', label); o.value = v; res.append(o); }
-  resWrap.append(res);
-  const amount = numField('Amount', 'amount', 0);
-  const amountInput = amount.querySelector('input')!; amountInput.value = ''; amountInput.min = '0.01';
-  const atWrap = h('label', 'block text-sm text-mute', 'Date and time');
-  const at = h('input', 'field mt-1'); at.type = 'datetime-local'; at.name = 'at'; at.required = true; at.value = localInput(new Date());
-  atWrap.append(at);
-  const noteWrap = h('label', 'block text-sm text-mute', 'Note');
-  const note = h('input', 'field mt-1'); note.name = 'note'; note.maxLength = 500;
-  noteWrap.append(note);
-  const walletWrap = h('label', 'col-span-2 block text-sm text-mute', 'Wallet');
-  const wallet = h('select', 'field mt-1'); wallet.name = 'clientId';
-  const none = h('option', '', 'No wallet (record the deal only)'); none.value = ''; wallet.append(none);
-  for (const w of s.trading?.wallets ?? []) { const o = h('option', '', w.name); o.value = String(w.id); wallet.append(o); }
-  walletWrap.append(wallet);
-  const add = h('button', 'btn btn-gold col-span-2 !py-2', 'Save deal'); add.type = 'submit';
-  f.append(walletWrap, titleWrap, resWrap, amount, atWrap, noteWrap, add);
-  f.addEventListener('submit', (e) => {
-    e.preventDefault();
-    if (!f.reportValidity()) return;
-    const fd = new FormData(f);
-    run(() => api(`staff/${s.id}/deals`, 'POST', {
-      clientId: Number(fd.get('clientId')) || null, title: fd.get('title'), result: fd.get('result'), amount: Number(fd.get('amount')), at: new Date(String(fd.get('at'))).toISOString(), note: fd.get('note'),
-    }));
-  });
+  if (role === 'admin') {
+    const f = h('form', 'mt-3 grid grid-cols-2 gap-3');
+    const select = (label: string, name: string, options: [string, string][], wide = false) => {
+      const w = h('label', `${wide ? 'col-span-2 ' : ''}block text-sm text-mute`, label);
+      const el = h('select', 'field mt-1'); el.name = name;
+      for (const [v, t] of options) { const o = h('option', '', t); o.value = v; el.append(o); }
+      w.append(el); return w;
+    };
+    const wallet = select('Wallet', 'clientId', [['', 'No wallet (record the deal only)'], ...(s.trading?.wallets ?? []).map((w): [string, string] => [String(w.id), w.name])], true);
+    const stock = select('Stock', 'instrumentId', instruments.map((i): [string, string] => [String(i.id), i.symbol]));
+    stock.querySelector('select')!.required = true;
+    const side = select('Buy / Sell', 'side', [['buy', 'Buy'], ['sell', 'Sell']]);
+    const res = select('Result', 'result', [['profit', 'Earning'], ['loss', 'Loss']]);
+    const amount = numField('Amount', 'amount', 0);
+    const ai = amount.querySelector('input')!; ai.value = ''; ai.min = '0.01';
+    const atWrap = h('label', 'col-span-2 block text-sm text-mute', 'Date and time');
+    const at = h('input', 'field mt-1'); at.type = 'datetime-local'; at.name = 'at'; at.required = true; at.value = localInput(new Date());
+    atWrap.append(at);
+    const add = h('button', 'btn btn-gold col-span-2 !py-2', 'Save deal'); add.type = 'submit';
+    if (!instruments.length) f.append(h('p', 'col-span-2 text-mute', 'Add stocks to the deal list (top of this tab) to record deals.'));
+    else f.append(wallet, stock, side, res, amount, atWrap, add);
+    f.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!f.reportValidity()) return;
+      const fd = new FormData(f);
+      run(() => api(`staff/${s.id}/deals`, 'POST', {
+        clientId: Number(fd.get('clientId')) || null, instrumentId: Number(fd.get('instrumentId')), side: fd.get('side'),
+        result: fd.get('result'), amount: Number(fd.get('amount')), at: new Date(String(fd.get('at'))).toISOString(),
+      }));
+    });
+    box.append(f);
+  }
 
   const list = h('ul', 'mt-4');
   if (!d.items.length) list.append(h('li', 'py-2 text-mute', 'No deals recorded yet.'));
   for (const deal of d.items) {
     const li = h('li', 'flex items-baseline justify-between gap-3 border-t border-edge py-2');
     const left = h('div');
-    left.append(h('p', 'font-semibold', deal.title), h('p', 'text-xs text-mute', [fmtDate(deal.at), deal.wallet && `Wallet: ${deal.wallet}`, deal.note].filter(Boolean).join(' \u00b7 ')));
+    left.append(h('p', 'font-semibold', deal.title), h('p', 'text-xs text-mute', [fmtDate(deal.at), deal.wallet && `Wallet: ${deal.wallet}`, deal.note].filter(Boolean).join(' · ')));
     const right = h('div', 'flex items-baseline gap-3 whitespace-nowrap');
     right.append(h('span', `font-semibold tabular-nums ${deal.amount > 0 ? 'pos' : 'neg'}`, signed(deal.amount)));
     if (role === 'admin') {
@@ -394,7 +484,6 @@ function dealsBlock(s: Staff, run: (fn: () => Promise<unknown>) => Promise<void>
     li.append(left, right);
     list.append(li);
   }
-  if (role === 'admin') box.append(f);
   box.append(list);
   return [line, chartBlock('Deals profit / loss over time', toSeries(d.points), { zero: true, signed: true }), box];
 }
@@ -402,7 +491,8 @@ function dealsBlock(s: Staff, run: (fn: () => Promise<unknown>) => Promise<void>
 async function loadStaff() {
   const month = monthInput.value || thisMonth();
   try {
-    const data = await api<{ items: Staff[]; currency?: string }>(`staff?month=${month}`);
+    const [data] = await Promise.all([api<{ items: Staff[]; currency?: string }>(`staff?month=${month}`), fetchInstruments()]);
+    renderInstruments();
     if (data.currency) currency = data.currency;
     $('#staff-list').replaceChildren(...data.items.map((s) => staffCard(s, month)));
     $('#staff-empty').hidden = data.items.length > 0;
@@ -483,13 +573,16 @@ async function loadDealForm() {
   try {
     const keep = pendingWallet || Number(walletSelect.value);
     pendingWallet = 0;
-    const items = await fetchWallets();
+    const [items] = await Promise.all([fetchWallets(), fetchInstruments()]);
+    fillInstrumentSelect($<HTMLSelectElement>('#d-stock'));
     walletSelect.replaceChildren(...items.map((w) => { const o = h('option', '', `${w.name}${w.live ? '' : ' (paused)'}`); o.value = String(w.id); return o; }));
     if (items.some((w) => w.id === keep)) walletSelect.value = String(keep);
-    dealForm.hidden = items.length === 0;
-    $('#deal-empty').hidden = items.length > 0;
-    const at = $<HTMLInputElement>('#d-at');
-    if (!at.value) at.value = localInput(new Date());
+    const ready = items.length > 0 && instruments.length > 0;
+    dealForm.hidden = !ready;
+    $('#deal-empty').textContent = !items.length
+      ? 'You have no wallets to trade on yet, so there is nothing to record. The admin assigns wallets by setting you as the trader on a client.'
+      : 'The deal list is empty. The admin adds the stocks you can pick in the Staff tab.';
+    $('#deal-empty').hidden = ready;
     showWalletInfo();
   } catch (e) { report(e); }
 }
@@ -504,11 +597,9 @@ dealForm.addEventListener('submit', async (e) => {
   try {
     const clientId = Number(fd.get('clientId'));
     await api('deals', 'POST', {
-      clientId, title: fd.get('title'), result: fd.get('result'), amount: Number(fd.get('amount')),
-      at: new Date(String(fd.get('at'))).toISOString(), note: fd.get('note'),
+      clientId, instrumentId: Number(fd.get('instrumentId')), side: fd.get('side'), result: fd.get('result'), amount: Number(fd.get('amount')),
     });
-    for (const id of ['#d-title', '#d-amount', '#d-note']) $<HTMLInputElement>(id).value = '';
-    $<HTMLInputElement>('#d-at').value = localInput(new Date());
+    $<HTMLInputElement>('#d-amount').value = '';
     await loadDealForm();
     walletSelect.value = String(clientId);
     showWalletInfo();
@@ -518,14 +609,52 @@ dealForm.addEventListener('submit', async (e) => {
   finally { btn.disabled = false; }
 });
 
+function renderInstruments() {
+  $('#instrument-list').replaceChildren(...instruments.map((i) => {
+    const li = h('li', 'flex items-center gap-2 border border-edge px-3 py-1 text-sm');
+    const del = h('button', 'text-mute hover:text-signal', '×'); del.type = 'button'; del.setAttribute('aria-label', `Remove ${i.symbol}`);
+    del.addEventListener('click', async () => { try { await api(`instruments/${i.id}`, 'DELETE'); await loadStaff(); } catch (err) { report(err); } });
+    li.append(h('span', 'font-semibold', i.symbol), del);
+    return li;
+  }));
+  $('#instrument-empty').hidden = instruments.length > 0;
+}
+$<HTMLFormElement>('#instrument-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.currentTarget as HTMLFormElement;
+  if (!f.reportValidity()) return;
+  try {
+    await api('instruments', 'POST', { symbol: new FormData(f).get('symbol') });
+    f.reset();
+    await loadStaff();
+  } catch (err) { report(err); }
+});
+
+// Add employee: pay type picks which field shows; "live trader" in the job title suggests commission.
+const newPay = $<HTMLSelectElement>('#s-pay');
+function syncNewPay() {
+  const c = newPay.value === 'commission';
+  $('#s-salary-box').hidden = c; $('#s-rate-box').hidden = !c;
+  $<HTMLInputElement>('#s-salary').required = !c; $<HTMLInputElement>('#s-rate').required = c;
+}
+newPay.addEventListener('change', syncNewPay);
+$<HTMLInputElement>('#s-title').addEventListener('change', (e) => {
+  if (/live\s*trader/i.test((e.target as HTMLInputElement).value)) { newPay.value = 'commission'; syncNewPay(); }
+});
+syncNewPay();
+
 $<HTMLFormElement>('#staff-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = e.currentTarget as HTMLFormElement;
   if (!f.reportValidity()) return;
   const fd = new FormData(f);
   try {
-    await api('staff', 'POST', { name: fd.get('name'), title: fd.get('title'), salary: Number(fd.get('salary')), startDate: fd.get('startDate'), email: fd.get('email'), password: fd.get('password') });
+    await api('staff', 'POST', {
+      name: fd.get('name'), title: fd.get('title'), payType: fd.get('payType'), salary: Number(fd.get('salary') || 0), commissionPct: Number(fd.get('commissionPct') || 0),
+      startDate: fd.get('startDate'), email: fd.get('email'), password: fd.get('password'),
+    });
     f.reset();
+    syncNewPay();
     await loadStaff();
   } catch (err) { report(err); }
 });
