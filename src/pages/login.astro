@@ -46,7 +46,10 @@ import { SITE_NAME } from '../config';
     <header class="sticky top-0 z-40 border-b border-edge bg-ink/90 backdrop-blur">
       <div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-3">
         <a href="/" aria-label={`${SITE_NAME} home page`}><img src="/images/wordmark.webp" alt={SITE_NAME} width="800" height="216" class="h-8 w-auto" /></a>
-        <button id="logout" type="button" class="text-sm font-semibold text-gold hover:text-ivory">Sign out</button>
+        <div class="flex items-center gap-5">
+          <span id="busy" class="text-sm text-mute" role="status" hidden>Loading&hellip;</span>
+          <button id="logout" type="button" class="text-sm font-semibold text-gold hover:text-ivory">Sign out</button>
+        </div>
       </div>
       <div class="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-5" role="tablist" aria-label="Finance sections">
         <button class="tab" role="tab" id="tab-summary" data-tab="summary" aria-controls="panel-summary" aria-selected="true">Summary</button>

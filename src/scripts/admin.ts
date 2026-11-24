@@ -24,6 +24,8 @@ const ERRORS: Record<string, string> = {
   already_paid: 'This salary is already recorded as paid for that month.',
   nothing_to_pay: 'Net pay for this month is zero.',
   network: 'Network error. Check your connection and try again.',
+  timeout: 'The server took too long to answer. Please try again.',
+  server: 'The server could not do that just now. Please try again in a moment.',
   email_taken: 'That sign-in email is already used by another account.',
   weak_password: 'A sign-in password needs an email and at least 8 characters.',
   forbidden: 'Your account is not allowed to do that.',
@@ -31,16 +33,28 @@ const ERRORS: Record<string, string> = {
 const explain = (code: string) => ERRORS[code] ?? 'Something went wrong. Please try again.';
 
 class ApiError extends Error {}
+// "Loading…" next to Sign out while any request is open (shown only if it takes more than a moment).
+let pending = 0, busyTimer = 0;
+function busy(delta: number) {
+  pending += delta;
+  clearTimeout(busyTimer);
+  if (pending > 0) busyTimer = window.setTimeout(() => { $('#busy').hidden = false; }, 250);
+  else $('#busy').hidden = true;
+}
+
 async function api<T = any>(path: string, method = 'GET', body?: unknown): Promise<T> {
   let res: Response;
+  busy(1);
   try {
     res = await fetch(`/api/admin/${path}`, {
       method,
       credentials: 'same-origin',
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(30_000), // never wait forever
     });
-  } catch { throw new ApiError('network'); }
+  } catch (e) { throw new ApiError((e as Error).name === 'TimeoutError' ? 'timeout' : 'network'); }
+  finally { busy(-1); }
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && path !== 'login') { showLogin(); throw new ApiError('unauthorized'); }
   if (!res.ok) throw new ApiError(data.error || 'server');
