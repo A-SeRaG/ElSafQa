@@ -227,10 +227,18 @@ A private page for the company's finances. The site header has a "Log in" button
 - A staff member sees three tabs:
   1. **Profile**: name, job title, sign-in email, salary, bonus and deduction for the chosen month, targets and instructions scores, and their deals history (each deal shows the wallet it was on) with a running profit / loss chart.
   2. **Wallets**: every client wallet where the client's *Trader* field is their name: balance, Live / Paused, net deposits, profit / loss, a "Wallet over time" chart, and their own deals on that wallet. Client contact details are not shown.
-  3. **New deal**: pick one of those wallets, then deal name, earning or loss, amount, date and note.
+  3. **New deal**: pick one of those wallets, a stock from the deal list, Buy or Sell, Earning or Loss, and type the amount. The server stamps the date and time; staff cannot back-date a deal.
 - **Saving a deal on a wallet does two things at once:** it adds a "Trading profit" or "Trading loss" row to that client's wallet (the admin sees "by <trader>" in the client's history) and it adds the deal to the trader's history. Deleting either one deletes the other. Removing a client keeps the trader's deals but unlinks them from the wallet.
 - Staff cannot edit or delete anything, cannot record on another trader's wallet, and cannot see other staff, clients they don't trade, transactions or the company summary. The server refuses those requests; hiding the tabs is only cosmetic.
-- The admin can also add a deal from a staff card, on one of that trader's wallets or with no wallet (recorded in the history only, no wallet change).
+- The admin can also add a deal from a staff card, on one of that trader's wallets or with no wallet (recorded in the history only, no wallet change), and may set its date.
+- **Deal list:** the admin keeps the list of stocks at the top of the Staff tab (add, or × to remove). Removing a stock hides it from the pickers; past deals keep its name. Adding it again brings it back.
+
+**Pay, bonuses, deductions and evaluation (admin, per month, on each staff card)**
+
+- **Pay type** is set per employee (Add employee, or *Edit details, pay or sign-in*): a fixed monthly salary, or a percentage of the month's net deals profit (default 4%, for live traders). Net profit is earnings minus losses of that trader's deals in that month, counted in Cairo time; a month that ends in a net loss pays 0 commission. Entering "Live Trader" as the job title picks the percentage automatically. When this update first runs, every employee whose job title contains "live trader" is switched to 4% of profit; everyone else keeps their fixed salary.
+- **Bonuses and deductions** are separate items, each with an amount and a reason, listed under *Pay for <month>*. Bonus and deduction figures saved before this update were moved into that list.
+- **Net pay** = base pay + bonuses − deductions. *Record salary payment* writes that amount as an "out" transaction. After that, the month's bonuses and deductions are locked.
+- **Evaluation for <month>**: targets achieved %, followed instructions %, and a note. Staff see all of this on their Profile, read-only.
 - The admin gives an employee a sign-in in *Add employee* or under *Edit details or sign-in* on the card. An empty email removes the sign-in. Removing the sign-in or changing the password signs that person out everywhere at once. Staff passwords are stored only as salted PBKDF2 hashes.
 - Deals never change the company capital. Only the client wallet they are recorded on changes.
 - **Test staff account:** set the environment variable `TEST_STAFF_PASSWORD` in Vercel and redeploy. The account `staff.test@elsafqa.com` ("Test Staff") then exists with that password. Remove the variable and redeploy to switch its sign-in off.

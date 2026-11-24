@@ -160,6 +160,17 @@ import { SITE_NAME } from '../config';
             <input class="field" id="staff-month" type="month" required />
           </div>
         </div>
+        <section class="mt-6 border border-edge bg-coal p-6" aria-labelledby="instruments-title">
+          <h3 id="instruments-title" class="text-lg font-semibold">Deal list</h3>
+          <p class="mt-1 text-sm text-mute">The stocks traders pick from when they record a deal. Removing one hides it from the list; past deals keep it.</p>
+          <ul id="instrument-list" class="mt-4 flex flex-wrap gap-2"></ul>
+          <p id="instrument-empty" class="mt-4 text-sm text-mute" hidden>No stocks yet. Traders can't record deals until you add at least one.</p>
+          <form id="instrument-form" class="mt-4 flex gap-3">
+            <label for="i-symbol" class="sr-only">Stock</label>
+            <input class="field max-w-xs" id="i-symbol" name="symbol" required maxlength="30" placeholder="e.g. XAUUSD" autocomplete="off" />
+            <button type="submit" class="btn btn-line !py-2">Add</button>
+          </form>
+        </section>
         <div id="staff-list" class="mt-6 grid gap-5 md:grid-cols-2"></div>
         <p id="staff-empty" class="mt-6 text-sm text-mute" hidden>No employees yet. Add the first one below.</p>
 
@@ -167,7 +178,10 @@ import { SITE_NAME } from '../config';
           <h3 class="text-lg font-semibold sm:col-span-2">Add employee</h3>
           <div><label for="s-name" class="mb-1 block text-sm text-mute">Name</label><input class="field" id="s-name" name="name" required maxlength="80" /></div>
           <div><label for="s-title" class="mb-1 block text-sm text-mute">Job title</label><input class="field" id="s-title" name="title" required maxlength="80" /></div>
-          <div><label for="s-salary" class="mb-1 block text-sm text-mute">Monthly salary</label><input class="field" id="s-salary" name="salary" type="number" min="0" step="0.01" required inputmode="decimal" /></div>
+          <div class="sm:col-span-2"><label for="s-pay" class="mb-1 block text-sm text-mute">Pay</label>
+            <select class="field" id="s-pay" name="payType"><option value="fixed">Fixed monthly salary</option><option value="commission">Percentage of monthly net profit (live trader)</option></select></div>
+          <div id="s-salary-box"><label for="s-salary" class="mb-1 block text-sm text-mute">Monthly salary</label><input class="field" id="s-salary" name="salary" type="number" min="0" step="0.01" required inputmode="decimal" /></div>
+          <div id="s-rate-box" hidden><label for="s-rate" class="mb-1 block text-sm text-mute">Share of net profit %</label><input class="field" id="s-rate" name="commissionPct" type="number" min="0" max="100" step="0.01" value="4" inputmode="decimal" /></div>
           <div><label for="s-start" class="mb-1 block text-sm text-mute">Start date (optional)</label><input class="field" id="s-start" name="startDate" type="date" /></div>
           <div><label for="s-email" class="mb-1 block text-sm text-mute">Sign-in email (optional)</label><input class="field" id="s-email" name="email" type="email" maxlength="200" autocomplete="off" /></div>
           <div><label for="s-pass" class="mb-1 block text-sm text-mute">Sign-in password (min. 8 characters)</label><input class="field" id="s-pass" name="password" type="password" minlength="8" maxlength="200" autocomplete="new-password" /></div>
@@ -207,9 +221,18 @@ import { SITE_NAME } from '../config';
             <select class="field" id="d-wallet" name="clientId" required></select>
             <p id="d-wallet-info" class="mt-2 min-h-5 text-sm text-mute"></p>
           </div>
-          <div>
-            <label for="d-title" class="mb-1 block text-sm text-mute">Deal</label>
-            <input class="field" id="d-title" name="title" required maxlength="120" placeholder="e.g. XAUUSD buy" />
+          <div class="grid gap-5 sm:grid-cols-2">
+            <div>
+              <label for="d-stock" class="mb-1 block text-sm text-mute">Stock</label>
+              <select class="field" id="d-stock" name="instrumentId" required></select>
+            </div>
+            <fieldset>
+              <legend class="mb-1 text-sm text-mute">Buy / Sell</legend>
+              <div class="grid grid-cols-2 gap-3">
+                <label class="choice"><input class="sr-only" type="radio" name="side" value="buy" required checked /><span>Buy</span></label>
+                <label class="choice"><input class="sr-only" type="radio" name="side" value="sell" required /><span>Sell</span></label>
+              </div>
+            </fieldset>
           </div>
           <fieldset>
             <legend class="mb-2 text-sm text-mute">Result</legend>
@@ -218,21 +241,11 @@ import { SITE_NAME } from '../config';
               <label class="choice"><input class="sr-only" type="radio" name="result" value="loss" required /><span>Loss</span></label>
             </div>
           </fieldset>
-          <div class="grid gap-5 sm:grid-cols-2">
-            <div>
-              <label for="d-amount" class="mb-1 block text-sm text-mute">Amount</label>
-              <input class="field" id="d-amount" name="amount" type="number" min="0.01" step="0.01" required inputmode="decimal" />
-            </div>
-            <div>
-              <label for="d-at" class="mb-1 block text-sm text-mute">Date and time</label>
-              <input class="field" id="d-at" name="at" type="datetime-local" required />
-            </div>
-          </div>
           <div>
-            <label for="d-note" class="mb-1 block text-sm text-mute">Note (optional)</label>
-            <textarea class="field" id="d-note" name="note" rows="2" maxlength="500"></textarea>
+            <label for="d-amount" class="mb-1 block text-sm text-mute">Amount</label>
+            <input class="field" id="d-amount" name="amount" type="number" min="0.01" step="0.01" required inputmode="decimal" />
           </div>
-          <p class="text-sm text-mute">Saving adds the earning or loss to the selected wallet's balance and to your deals history.</p>
+          <p class="text-sm text-mute">Saving records the deal now, adds the earning or loss to the selected wallet's balance, and adds it to your deals history.</p>
           <button type="submit" class="btn btn-gold w-full">Save deal</button>
           <p id="deal-status" class="min-h-5 text-sm" role="status"></p>
         </form>
