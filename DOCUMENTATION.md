@@ -232,6 +232,7 @@ A private page for the company's finances. The site header has a "Log in" button
 - Staff cannot edit or delete anything, cannot record on another trader's wallet, and cannot see other staff, clients they don't trade, transactions or the company summary. The server refuses those requests; hiding the tabs is only cosmetic.
 - The admin can also add a deal from a staff card, on one of that trader's wallets or with no wallet (recorded in the history only, no wallet change), and may set its date.
 - **Deal list:** the admin keeps the list of stocks at the top of the Staff tab (add, or × to remove). Removing a stock hides it from the pickers; past deals keep its name. Adding it again brings it back.
+- **Stocks per wallet:** on each client card in the Clients tab, *Stocks on this wallet* lets the admin tick which stocks from the deal list that wallet may be traded in. Traders then see only those stocks when they pick that wallet, and the server refuses any other. A wallet with nothing ticked allows every stock in the deal list.
 
 **Pay, bonuses, deductions and evaluation (admin, per month, on each staff card)**
 
