@@ -262,7 +262,8 @@ A private page for the company's finances. The site header has a "Log in" button
 | `ALERT_EMAIL_TO` | Optional recipient of the alert, defaults to `ADMIN_EMAIL` |
 | `TEST_STAFF_PASSWORD` | Optional. Enables the test staff account `staff.test@elsafqa.com` with this password |
 
-3. Redeploy. Until `DATABASE_URL`, `ADMIN_PASSWORD` and `SESSION_SECRET` exist, the page shows "backend is not configured".
+3. **Put the function next to the database.** Every page of the app talks to Supabase, so the distance between them is what you feel. In Supabase, *Project Settings > General* shows the region (for example *Central EU (Frankfurt)*). In Vercel, *Project > Settings > Functions > Function Region*, pick the closest one (Frankfurt is `fra1`), save, and redeploy. Vercel's default is Washington, D.C., which adds a trip across the Atlantic to every database query.
+4. Redeploy. Until `DATABASE_URL`, `ADMIN_PASSWORD` and `SESSION_SECRET` exist, the page shows "backend is not configured".
 
 Without `RESEND_API_KEY`, the alert falls back to Telegram if `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set. Changing `SESSION_SECRET` signs everyone out immediately. To look at the data in Supabase, open the Table Editor and switch the schema from `public` to `elsafqa_admin`.
 

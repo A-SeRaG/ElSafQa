@@ -5,11 +5,12 @@
 import postgres from 'postgres';
 import { handle } from '../lib/admin-core.js';
 
-// One small connection per warm function instance. `prepare: false` is required by Supabase's transaction pooler.
+// A few connections per warm function instance, so queries that don't depend on each other run side by side.
+// `prepare: false` is required by Supabase's transaction pooler.
 let sql;
 function database() {
   if (!process.env.DATABASE_URL) return null;
-  sql ??= postgres(process.env.DATABASE_URL, { prepare: false, max: 1, idle_timeout: 20, connect_timeout: 10, ssl: process.env.DATABASE_SSL === 'off' ? false : 'require', onnotice: () => {} }); // DATABASE_SSL=off is for local tests only
+  sql ??= postgres(process.env.DATABASE_URL, { prepare: false, max: 4, idle_timeout: 60, connect_timeout: 10, ssl: process.env.DATABASE_SSL === 'off' ? false : 'require', onnotice: () => {} }); // DATABASE_SSL=off is for local tests only
   return {
     all: (text, params = []) => sql.unsafe(text, params),
     exec: (text) => sql.unsafe(text),
