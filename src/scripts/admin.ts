@@ -115,7 +115,13 @@ async function refreshSummary() {
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1), to = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   try {
-    const s = await api(`summary?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`);
+    // The three requests go out together instead of one after another.
+    txOffset = 0;
+    const [s, p, tx] = await Promise.all([
+      api(`summary?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`),
+      api<{ opening: number; points: Point[] }>('progress'),
+      fetchTx(),
+    ]);
     currency = s.currency;
     $('#capital').textContent = fmt(s.capital);
     $('#m-expenses').textContent = fmt(s.expenses);
@@ -127,18 +133,17 @@ async function refreshSummary() {
     $('#m-label').textContent = `in ${now.toLocaleString('en', { month: 'long', year: 'numeric' })}`;
     $<HTMLInputElement>('#opening').value = String(s.opening);
     $<HTMLInputElement>('#currency').value = s.currency;
-    const p = await api<{ opening: number; points: Point[] }>('progress');
     chartData = p;
     $('#chart-empty').hidden = p.points.length > 0;
     redrawCharts();
-    txOffset = 0;
     $('#tx-rows').replaceChildren();
-    await loadTx();
+    renderTx(tx); // drawn once the currency is known
   } catch (e) { report(e); }
 }
 
-async function loadTx() {
-  const data = await api<{ items: Tx[]; more: boolean }>(`transactions?limit=${PAGE}&offset=${txOffset}`);
+const fetchTx = () => api<{ items: Tx[]; more: boolean }>(`transactions?limit=${PAGE}&offset=${txOffset}`);
+async function loadTx() { renderTx(await fetchTx()); }
+function renderTx(data: { items: Tx[]; more: boolean }) {
   const rows = $('#tx-rows');
   for (const t of data.items) {
     const tr = h('tr', 'border-t border-edge align-top');
@@ -729,7 +734,7 @@ function clientCard(c: Client) {
 
 async function loadClients() {
   try {
-    const [data, staff] = await Promise.all([api<{ items: Client[] }>('clients'), api<{ items: Staff[] }>(`staff?month=${thisMonth()}`)]);
+    const [data, staff] = await Promise.all([api<{ items: Client[] }>('clients'), api<{ items: { id: number; name: string }[] }>('staff/names')]);
     $('#client-list').replaceChildren(...data.items.map(clientCard));
     $('#client-empty').hidden = data.items.length > 0;
     redrawCharts();
