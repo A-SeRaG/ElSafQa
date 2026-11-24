@@ -61,7 +61,7 @@ async function api<T = any>(path: string, method = 'GET', body?: unknown): Promi
   finally { busy(-1); }
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && path !== 'login') { showLogin(); throw new ApiError('unauthorized'); }
-  if (!res.ok) throw new ApiError(data.error || 'server');
+  if (!res.ok) throw new ApiError(data.error || 'server', { cause: data.code });
   return data;
 }
 
@@ -86,7 +86,10 @@ function say(el: HTMLElement, text: string, tone: 'ok' | 'err' | 'mute' = 'err')
   el.classList.remove('text-gold', 'text-signal', 'text-mute');
   el.classList.add(tone === 'ok' ? 'text-gold' : tone === 'err' ? 'text-signal' : 'text-mute');
 }
-const report = (e: unknown, el: HTMLElement = appStatus) => { if ((e as Error).message !== 'unauthorized') say(el, explain((e as Error).message)); };
+const report = (e: unknown, el: HTMLElement = appStatus) => {
+  const err = e as Error;
+  if (err.message !== 'unauthorized') say(el, explain(err.message) + (err.cause ? ` (code ${err.cause})` : ''));
+};
 // Destructive buttons ask for a second click instead of a blocking browser dialog.
 function confirmClick(btn: HTMLButtonElement, action: () => void) {
   const label = btn.textContent;
