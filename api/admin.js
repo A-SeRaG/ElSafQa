@@ -34,6 +34,7 @@ function client() {
 async function query(run) {
   let timer;
   const conn = client();
+  lastUsed = Date.now(); // mark use now, so queries started alongside this one keep these connections
   try {
     return await Promise.race([
       run(conn),

@@ -61,7 +61,7 @@ async function api<T = any>(path: string, method = 'GET', body?: unknown): Promi
   finally { busy(-1); }
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && path !== 'login') { showLogin(); throw new ApiError('unauthorized'); }
-  if (!res.ok) throw new ApiError(data.error || 'server', { cause: data.code });
+  if (!res.ok) throw new ApiError(data.error || 'server', { cause: data.code || res.headers.get('x-vercel-error') || `HTTP ${res.status}` });
   return data;
 }
 
