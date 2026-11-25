@@ -207,7 +207,7 @@ A private page for the company's finances. The site header has a "Log in" button
 | `src/pages/login.astro` | Sign-in screen and the app shell (4 tabs) |
 | `src/scripts/admin.ts` | Browser logic (renders data with `textContent` only) |
 | `lib/admin-core.js` | The whole backend logic: sign-in, session, transactions, staff, clients, login alert |
-| `api/admin.js` | Vercel Function that connects to Supabase Postgres and runs the backend |
+| `api/admin.js` | Vercel Function that connects to Supabase Postgres (a `pg` pool registered with Vercel's `attachDatabasePool`, so idle connections close before Vercel pauses the function) and runs the backend |
 | `vercel.json` | Routes `/api/admin/*` to that function and sets the `/login` security headers (and redirects the old `/admins` address to `/login`) |
 
 **Tabs**
