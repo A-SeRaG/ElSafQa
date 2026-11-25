@@ -1,59 +1,42 @@
 // Vercel Function: /api/admin/*  (vercel.json rewrites every /api/admin/... request here)
 // Environment variables (Vercel > Project > Settings > Environment Variables):
-//   DATABASE_URL    Supabase "Transaction pooler" connection string (required)
+//   DATABASE_URL    Supabase "Transaction pooler" connection string, port 6543 (required)
 //   ADMIN_PASSWORD, SESSION_SECRET (required); see DOCUMENTATION.md section 15 for the optional ones
-import postgres from 'postgres';
+//
+// Connections follow the method Vercel and Supabase recommend for Fluid compute: a `pg` pool created
+// once per instance and registered with attachDatabasePool, which closes idle connections before
+// Vercel pauses the instance. That is what keeps queries from hanging on connections that died
+// during a pause.
+import pg from 'pg';
+import { attachDatabasePool } from '@vercel/functions';
 import { handle } from '../lib/admin-core.js';
 
-// Vercel pauses a function between requests. A database connection left open during a pause can be
-// dead when the function wakes up, and a query on it would wait with no end. So:
-//  - after IDLE_MS without a query, the next request starts on fresh connections;
-//  - no query may take longer than QUERY_MS: the connections are dropped and the request fails cleanly.
-const IDLE_MS = 10_000;
-const QUERY_MS = 15_000;
-let sql = null;
-let lastUsed = 0;
-
-function dropConnections() {
-  const old = sql;
-  sql = null;
-  old?.end({ timeout: 0 }).catch(() => {});
-}
-
-function client() {
-  if (sql && Date.now() - lastUsed > IDLE_MS) dropConnections();
-  // A few connections, so queries that don't depend on each other run side by side.
-  // `prepare: false` is required by Supabase's transaction pooler. DATABASE_SSL=off is for local tests only.
-  sql ??= postgres(process.env.DATABASE_URL, {
-    prepare: false, max: 4, idle_timeout: 20, connect_timeout: 10,
-    ssl: process.env.DATABASE_SSL === 'off' ? false : 'require', onnotice: () => {},
+let pool = null;
+function getPool() {
+  if (pool || !process.env.DATABASE_URL) return pool;
+  // Supabase's pooler uses its own certificate authority. Drop any sslmode in the URL so the ssl
+  // setting below applies (encrypted, without checking the certificate chain).
+  const url = new URL(process.env.DATABASE_URL);
+  url.searchParams.delete('sslmode');
+  pool = new pg.Pool({
+    connectionString: url.toString(),
+    ssl: process.env.DATABASE_SSL === 'off' ? false : { rejectUnauthorized: false }, // 'off' is for local tests only
+    max: 5,                         // a few, so the queries of one page run side by side
+    idleTimeoutMillis: 5_000,
+    connectionTimeoutMillis: 8_000, // fail clearly instead of waiting when the database can't be reached
+    query_timeout: 15_000,
   });
-  return sql;
-}
-
-async function query(run) {
-  let timer;
-  const conn = client();
-  lastUsed = Date.now(); // mark use now, so queries started alongside this one keep these connections
-  try {
-    return await Promise.race([
-      run(conn),
-      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('database did not answer in time')), QUERY_MS); }),
-    ]);
-  } catch (e) {
-    if (sql === conn) dropConnections(); // never reuse connections that just failed or hung
-    throw e;
-  } finally {
-    clearTimeout(timer);
-    lastUsed = Date.now();
-  }
+  pool.on('error', (e) => console.error('database pool error', e)); // a dropped idle connection must not crash the function
+  attachDatabasePool(pool);
+  return pool;
 }
 
 function database() {
-  if (!process.env.DATABASE_URL) return null;
+  const p = getPool();
+  if (!p) return null;
   return {
-    all: (text, params = []) => query((c) => c.unsafe(text, params)),
-    exec: (text) => query((c) => c.unsafe(text)),
+    all: async (text, params = []) => (await p.query(text, params)).rows,
+    exec: (text) => p.query(text), // several statements in one string run as one transaction
   };
 }
 
