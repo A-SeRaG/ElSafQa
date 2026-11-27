@@ -217,6 +217,14 @@ A private page for the company's finances. The site header has a "Log in" button
 3. **Staff**: add employees with a job title, monthly salary and start date. Each card shows, for the selected month: targets achieved %, followed instructions %, bonus, deduction, an evaluation note and the net pay. Each card also has a **Deals** block: every deal with what it earned or lost, the running total, and a "Deals profit / loss over time" chart. A staff member whose name is set as the trader on one or more clients additionally shows how many of those clients are live and the total they manage. "Record salary payment" writes the net pay as an "out" transaction, once per employee per month.
 4. **Clients**: add clients with a contact, an assigned trader and an optional first deposit. Each card shows the client's wallet (net deposits + trading profit − trading loss), the trader with a Live / Paused status you can switch, and the client's history of deposits, withdrawals, profits and losses. Each card also has a "Wallet over time" chart. Client wallets are client money: they are tracked separately and do **not** change the company capital.
 
+**Email builder (admin)**
+
+The *Email builder* tab makes branded ElSafQa emails (job offers, partner welcomes or blank) with a live preview, then copies them as a ready email, as HTML, or as a Google Apps Script that sends them from Gmail.
+
+- Source: `tools/email-builder.html`. `npm run build` turns it into `lib/email-builder.js` (via `tools/build-email-builder.mjs`), so edit the HTML file only.
+- Served by `/api/admin/email-builder` to the admin only (staff get 403, visitors 401), with its own security policy: it can't send data anywhere, and only this site can show it in a frame.
+- Saved templates are kept in the admin's browser (localStorage), without passwords.
+
 **Accounts and roles**
 
 | Account | Signs in with | Sees |

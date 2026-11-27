@@ -126,6 +126,9 @@ function openTab(name: string) {
   if (name === 'summary') refreshSummary();
   if (name === 'staff') loadStaff();
   if (name === 'clients') loadClients();
+  // The builder needs the full width; it loads the first time the tab opens.
+  $('#main').classList.toggle('wide', name === 'email');
+  if (name === 'email') { const f = $<HTMLIFrameElement>('#email-frame'); if (!f.src) f.src = '/api/admin/email-builder'; }
   if (name === 'me') loadMe();
   if (name === 'wallets') loadWallets();
   if (name === 'deal') loadDealForm();

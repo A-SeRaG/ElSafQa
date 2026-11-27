@@ -56,6 +56,7 @@ import { SITE_NAME } from '../config';
         <button class="tab" role="tab" id="tab-new" data-tab="new" aria-controls="panel-new" aria-selected="false">New transaction</button>
         <button class="tab" role="tab" id="tab-staff" data-tab="staff" aria-controls="panel-staff" aria-selected="false">Staff</button>
         <button class="tab" role="tab" id="tab-clients" data-tab="clients" aria-controls="panel-clients" aria-selected="false">Clients</button>
+        <button class="tab" role="tab" id="tab-email" data-tab="email" aria-controls="panel-email" aria-selected="false">Email builder</button>
         <!-- Staff accounts see only these three -->
         <button class="tab" role="tab" id="tab-me" data-tab="me" data-staff aria-controls="panel-me" aria-selected="false" hidden>Profile</button>
         <button class="tab" role="tab" id="tab-wallets" data-tab="wallets" data-staff aria-controls="panel-wallets" aria-selected="false" hidden>Wallets</button>
@@ -63,7 +64,7 @@ import { SITE_NAME } from '../config';
       </div>
     </header>
 
-    <main class="mx-auto max-w-5xl px-5 py-8">
+    <main id="main" class="mx-auto max-w-5xl px-5 py-8">
       <p id="app-status" class="mb-4 min-h-5 text-sm text-signal" role="status"></p>
 
       <!-- 1. Summary -->
@@ -251,6 +252,11 @@ import { SITE_NAME } from '../config';
           <p id="deal-status" class="min-h-5 text-sm" role="status"></p>
         </form>
         <p id="deal-empty" class="mx-auto max-w-xl text-sm text-mute" hidden>You have no wallets to trade on yet, so there is nothing to record. The admin assigns wallets by setting you as the trader on a client.</p>
+      </section>
+
+      <!-- Email builder (admin): the page itself comes from /api/admin/email-builder, only for the admin -->
+      <section id="panel-email" role="tabpanel" aria-labelledby="tab-email" hidden>
+        <iframe id="email-frame" title="ElSafQa email builder" class="email-frame"></iframe>
       </section>
 
       <!-- 4. Clients -->
