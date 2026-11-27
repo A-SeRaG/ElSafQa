@@ -105,6 +105,17 @@ import { SITE_NAME } from '../config';
           </form>
         </div>
 
+        <!-- Clients: wallets grouped by contact number -->
+        <section class="mt-10" aria-labelledby="hc-title">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <h2 id="hc-title" class="text-xl font-semibold">Clients</h2>
+            <p id="hc-totals" class="flex flex-wrap gap-x-6 gap-y-1 text-sm text-mute"></p>
+          </div>
+          <p class="mt-1 text-sm text-mute">Wallets with the same contact number are one client. A client's share % is taken from the month's wallet profit and added to the company capital automatically when the month ends.</p>
+          <div id="hc-list" class="mt-4 grid gap-4"></div>
+          <p id="hc-empty" class="mt-4 text-sm text-mute" hidden>No wallets yet. Add them in the Wallets tab.</p>
+        </section>
+
         <h2 class="mt-10 mb-4 text-xl font-semibold">Transaction history</h2>
         <div class="overflow-x-auto border border-edge">
           <table class="w-full min-w-[40rem] text-start text-sm">
