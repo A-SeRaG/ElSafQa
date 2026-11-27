@@ -71,6 +71,7 @@ const alt = lang === 'ar' ? '/' : '/ar/';
               <p class="mt-2 font-display text-2xl font-extrabold text-gold">
                 {c.was && <s class="me-3 text-lg font-semibold text-mute">{c.was}</s>}{c.price}
               </p>
+              {'usd' in c && <p class="egp mt-1 min-h-5 text-sm text-mute tabular-nums" data-usd={c.usd}></p>}
               <p class="mt-3 text-ivory/80">{c.p}</p>
               <ul class="mb-6 mt-4 space-y-2 text-sm">
                 {c.points.map((x) => <li class="border-s-2 border-gold ps-3">{x}</li>)}
@@ -124,3 +125,5 @@ const alt = lang === 'ar' ? '/' : '/ar/';
   <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   <script>import '../scripts/contact';</script>
 </Base>
+
+<script>import '../scripts/egp';</script>
