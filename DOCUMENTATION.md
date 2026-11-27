@@ -222,7 +222,10 @@ A private page for the company's finances. The site header has a "Log in" button
 Amounts are stored and entered in the currency set in Home → Settings (USD by default). While that is USD, every amount in the app also shows its value in Egyptian pounds, and the channel prices on the landing page show "≈ EGP …" under them.
 
 - The rate comes from `/api/rate` (`api/rate.js`): exchangerate.fun (updated hourly, free, no key), with ExchangeRate-API (updated daily, free, attribution shown) as a backup. It is cached for 30 minutes. Free sources are not tick-by-tick; a live market feed needs a paid API key.
-- Home shows the rate in use, when it was updated, and its source.
+- The rate is **one rate per day** (Cairo time), kept in the `elsafqa_admin.fx_rates` table so every page and every saved transaction uses the same number all day. The first visit of a new day fetches that day's rate (exchangerate.fun, with ExchangeRate-API as backup); if neither answers, the last known rate stays in use. The starting value is the banks' selling rate on 27 Nov 2026, 54.87.
+- To use another rate for today (for example the bank rate), enter it in Home > Settings > "Today's 1 USD in EGP". Leave it empty to keep the automatic one; the next day goes back to automatic.
+- Home shows the rate in use, the day it belongs to, and its source.
+- **New transaction** has a USD / EGP switch next to the amount. An amount in the other currency is converted to the company currency on the server at the current rate (shown as a preview while typing). The transaction keeps what was typed and the rate used, and the history shows them ("EGP 5,000 entered · 1 USD = 48.67 EGP"). If no rate can be loaded, such an entry is refused with a message; entries in the company currency always work.
 - If no rate can be loaded, amounts simply show in USD only.
 
 **Email builder (admin)**

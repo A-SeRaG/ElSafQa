@@ -1,5 +1,6 @@
 // Client for the /login app (admin finance app + staff view). All user data is written with textContent (never innerHTML).
-type Tx = { id: number; kind: 'in' | 'out'; amount: number; at: string; purpose: string; note: string };
+type Tx = { id: number; kind: 'in' | 'out'; amount: number; at: string; purpose: string; note: string;
+  entered: { currency: string; amount: number; rate: number } | null };
 type Staff = {
   id: number; name: string; title: string; salary: number; startDate: string;
   targetPct: number; instructionsPct: number; bonus: number; deduction: number; note: string; net: number; paidAt: string | null;
@@ -28,6 +29,8 @@ const ERRORS: Record<string, string> = {
   nothing_to_pay: 'Net pay for this month is zero.',
   network: 'Network error. Check your connection and try again.',
   timeout: 'The server took too long to answer. Please try again.',
+  no_rate: "The exchange rate can't be loaded right now, so this amount can't be converted. Try again in a moment, or enter it in the company currency.",
+  bad_currency: 'Amounts can be entered in USD or EGP only.',
   server: 'The server could not do that just now. Please try again in a moment.',
   email_taken: 'That sign-in email is already used by another account.',
   weak_password: 'A sign-in password needs an email and at least 8 characters.',
@@ -77,7 +80,7 @@ function usd(n: number) {
   catch { return `${n.toFixed(2)} ${currency}`; }
 }
 // USD -> EGP rate from /api/rate. While amounts are kept in USD, each one also shows its EGP value.
-type Rate = { rate: number; updated: string; source: string; sourceUrl: string };
+type Rate = { rate: number; day: string; updated: string; source: string; sourceUrl: string };
 let usdEgp: Rate | null = null;
 const egpFormat = new Intl.NumberFormat('en', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 });
 const egp = (n: number) => (currency === 'USD' && usdEgp && n !== 0 ? egpFormat.format(n * usdEgp.rate) : '');
@@ -92,7 +95,8 @@ function bigMoney(n: number, cls: string) {
 }
 async function loadRate() {
   try {
-    const r = await fetch('/api/rate', { signal: AbortSignal.timeout(6000) });
+    // Straight from the server (not a cached copy), so a rate just set in Settings shows at once.
+    const r = await fetch(`/api/rate?v=${Date.now()}`, { cache: 'no-store', signal: AbortSignal.timeout(6000) });
     const j = await r.json();
     if (j.ok) usdEgp = j;
   } catch { /* amounts show in USD only until the rate is back */ }
@@ -152,6 +156,7 @@ function openTab(name: string) {
   // The builder needs the full width; it loads the first time the tab opens.
   $('#main').classList.toggle('wide', name === 'email');
   if (name === 'email') { const f = $<HTMLIFrameElement>('#email-frame'); if (!f.src) f.src = '/api/admin/email-builder'; }
+  if (name === 'new') syncTxCurrency();
   if (name === 'me') loadMe();
   if (name === 'wallets') loadWallets();
   if (name === 'deal') loadDealForm();
@@ -176,9 +181,11 @@ async function refreshSummary() {
     $('#capital-egp').textContent = e ? `≈ ${e}` : '';
     $('#rate-line').replaceChildren();
     if (usdEgp && currency === 'USD') {
-      const when = new Date(usdEgp.updated).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-      const src = h('a', 'underline hover:text-gold', usdEgp.source); src.setAttribute('href', usdEgp.sourceUrl); src.setAttribute('rel', 'noopener noreferrer');
-      $('#rate-line').append(`1 USD = ${usdEgp.rate.toFixed(2)} EGP · updated ${when} · rates by `, src);
+      // One rate per day; it renews with the first visit of each new day (Cairo time).
+      const when = new Date(`${usdEgp.day}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      const src = usdEgp.sourceUrl ? h('a', 'underline hover:text-gold', usdEgp.source) : h('span', '', usdEgp.source);
+      if (usdEgp.sourceUrl) { src.setAttribute('href', usdEgp.sourceUrl); src.setAttribute('rel', 'noopener noreferrer'); }
+      $('#rate-line').append(`1 USD = ${usdEgp.rate.toFixed(2)} EGP · rate of ${when} (renews daily) · `, src);
     }
     $('#m-expenses').textContent = fmt(s.expenses);
     $('#m-revenue').textContent = fmt(s.revenue);
@@ -209,7 +216,10 @@ function renderTx(data: { items: Tx[]; more: boolean }) {
       h('td', 'max-w-xs px-4 py-3 text-mute', t.note),
       (() => {
         const td = h('td', `whitespace-nowrap px-4 py-3 text-end font-semibold tabular-nums ${t.kind === 'in' ? 'pos' : 'neg'}`, `${t.kind === 'in' ? '+' : '−'}${usd(t.amount)}`);
-        const e = egp(t.amount);
+        // Entered in the other currency: show what was typed and the rate used.
+        const e = t.entered
+          ? `${new Intl.NumberFormat('en', { style: 'currency', currency: t.entered.currency, minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(t.entered.amount)} entered · 1 USD = ${Number(t.entered.rate).toFixed(2)} EGP`
+          : egp(t.amount);
         if (e) td.append(h('div', 'text-xs font-normal text-mute', e));
         return td;
       })(),
@@ -228,6 +238,26 @@ function renderTx(data: { items: Tx[]; more: boolean }) {
 }
 $('#tx-more').addEventListener('click', () => loadTx().catch(report));
 
+// Amount currency: the company currency is the default; the other one is converted on saving.
+const txCurrency = () => $<HTMLFormElement>('#tx-form').querySelector<HTMLInputElement>('input[name=currency]:checked')?.value || currency;
+function amountPreview() {
+  const n = Number($<HTMLInputElement>('#amount').value);
+  const cur = txCurrency(), p = $('#amount-preview');
+  if (cur === currency || !n) { p.textContent = ''; return; }
+  if (!usdEgp) { p.textContent = 'Exchange rate not loaded yet; it is applied when you save.'; return; }
+  const conv = currency === 'USD' ? n / usdEgp.rate : n * usdEgp.rate;
+  p.textContent = `≈ ${usd(conv)} at 1 USD = ${usdEgp.rate.toFixed(2)} EGP (the rate at saving time is used)`;
+}
+function syncTxCurrency() {
+  const box = $('#tx-currency');
+  box.hidden = currency !== 'USD' && currency !== 'EGP';
+  const own = box.querySelector<HTMLInputElement>(`input[value="${currency}"]`);
+  if (own) own.checked = true;
+  amountPreview();
+}
+$('#amount').addEventListener('input', amountPreview);
+$('#tx-currency').addEventListener('change', amountPreview);
+
 $('#settings-toggle').addEventListener('click', () => { const f = $('#settings-form'); f.hidden = !f.hidden; });
 $<HTMLFormElement>('#settings-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -235,8 +265,10 @@ $<HTMLFormElement>('#settings-form').addEventListener('submit', async (e) => {
   if (!f.reportValidity()) return;
   const fd = new FormData(f);
   try {
-    await api('settings', 'PUT', { opening: Number(fd.get('opening')), currency: fd.get('currency') });
+    await api('settings', 'PUT', { opening: Number(fd.get('opening')), currency: fd.get('currency'), rate: fd.get('fx') || null });
     f.hidden = true;
+    $<HTMLInputElement>('#fx').value = '';
+    await loadRate();
     await refreshSummary();
   } catch (err) { report(err); }
 });
@@ -251,13 +283,14 @@ $<HTMLFormElement>('#tx-form').addEventListener('submit', async (e) => {
   btn.disabled = true;
   try {
     await api('transactions', 'POST', {
-      kind: fd.get('kind'), amount: Number(fd.get('amount')),
+      kind: fd.get('kind'), amount: Number(fd.get('amount')), currency: fd.get('currency') || currency,
       at: new Date(String(fd.get('at'))).toISOString(), // local time -> UTC
       purpose: fd.get('purpose'), note: fd.get('note'),
     });
     f.reset();
     $<HTMLInputElement>('#at').value = localInput(new Date());
-    say(status, 'Saved. It now appears in the summary.', 'ok');
+    say(status, 'Saved. It now appears on Home.', 'ok');
+    syncTxCurrency();
   } catch (err) { report(err, status); }
   finally { btn.disabled = false; }
 });
