@@ -80,7 +80,7 @@ function usd(n: number) {
   catch { return `${n.toFixed(2)} ${currency}`; }
 }
 // USD -> EGP rate from /api/rate. While amounts are kept in USD, each one also shows its EGP value.
-type Rate = { rate: number; updated: string; source: string; sourceUrl: string };
+type Rate = { rate: number; day: string; updated: string; source: string; sourceUrl: string };
 let usdEgp: Rate | null = null;
 const egpFormat = new Intl.NumberFormat('en', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 });
 const egp = (n: number) => (currency === 'USD' && usdEgp && n !== 0 ? egpFormat.format(n * usdEgp.rate) : '');
@@ -95,7 +95,8 @@ function bigMoney(n: number, cls: string) {
 }
 async function loadRate() {
   try {
-    const r = await fetch('/api/rate', { signal: AbortSignal.timeout(6000) });
+    // Straight from the server (not a cached copy), so a rate just set in Settings shows at once.
+    const r = await fetch(`/api/rate?v=${Date.now()}`, { cache: 'no-store', signal: AbortSignal.timeout(6000) });
     const j = await r.json();
     if (j.ok) usdEgp = j;
   } catch { /* amounts show in USD only until the rate is back */ }
@@ -180,9 +181,11 @@ async function refreshSummary() {
     $('#capital-egp').textContent = e ? `≈ ${e}` : '';
     $('#rate-line').replaceChildren();
     if (usdEgp && currency === 'USD') {
-      const when = new Date(usdEgp.updated).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-      const src = h('a', 'underline hover:text-gold', usdEgp.source); src.setAttribute('href', usdEgp.sourceUrl); src.setAttribute('rel', 'noopener noreferrer');
-      $('#rate-line').append(`1 USD = ${usdEgp.rate.toFixed(2)} EGP · updated ${when} · rates by `, src);
+      // One rate per day; it renews with the first visit of each new day (Cairo time).
+      const when = new Date(`${usdEgp.day}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      const src = usdEgp.sourceUrl ? h('a', 'underline hover:text-gold', usdEgp.source) : h('span', '', usdEgp.source);
+      if (usdEgp.sourceUrl) { src.setAttribute('href', usdEgp.sourceUrl); src.setAttribute('rel', 'noopener noreferrer'); }
+      $('#rate-line').append(`1 USD = ${usdEgp.rate.toFixed(2)} EGP · rate of ${when} (renews daily) · `, src);
     }
     $('#m-expenses').textContent = fmt(s.expenses);
     $('#m-revenue').textContent = fmt(s.revenue);
@@ -262,8 +265,10 @@ $<HTMLFormElement>('#settings-form').addEventListener('submit', async (e) => {
   if (!f.reportValidity()) return;
   const fd = new FormData(f);
   try {
-    await api('settings', 'PUT', { opening: Number(fd.get('opening')), currency: fd.get('currency') });
+    await api('settings', 'PUT', { opening: Number(fd.get('opening')), currency: fd.get('currency'), rate: fd.get('fx') || null });
     f.hidden = true;
+    $<HTMLInputElement>('#fx').value = '';
+    await loadRate();
     await refreshSummary();
   } catch (err) { report(err); }
 });
