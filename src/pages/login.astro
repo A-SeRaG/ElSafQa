@@ -134,7 +134,14 @@ import { SITE_NAME } from '../config';
           <div class="grid gap-5 sm:grid-cols-2">
             <div>
               <label for="amount" class="mb-1 block text-sm text-mute">Amount</label>
-              <input class="field" id="amount" name="amount" type="number" min="0.01" step="0.01" required inputmode="decimal" />
+              <div class="flex gap-2">
+                <input class="field min-w-0 flex-1" id="amount" name="amount" type="number" min="0.01" step="0.01" required inputmode="decimal" />
+                <div id="tx-currency" class="grid shrink-0 grid-cols-2" role="radiogroup" aria-label="Currency of the amount">
+                  <label class="choice choice-sm"><input class="sr-only" type="radio" name="currency" value="USD" checked /><span>USD</span></label>
+                  <label class="choice choice-sm"><input class="sr-only" type="radio" name="currency" value="EGP" /><span>EGP</span></label>
+                </div>
+              </div>
+              <p id="amount-preview" class="mt-2 min-h-5 text-sm text-mute"></p>
             </div>
             <div>
               <label for="at" class="mb-1 block text-sm text-mute">Date and time</label>

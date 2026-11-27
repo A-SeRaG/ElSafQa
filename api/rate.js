@@ -1,39 +1,12 @@
 // Vercel Function: GET /api/rate  ->  { ok, rate, updated, source, sourceUrl }
-// USD -> EGP exchange rate for showing EGP next to dollar amounts (team app and landing page).
-// Free sources update hourly (exchangerate.fun) or daily (ExchangeRate-API, used as a backup);
-// a true tick-by-tick rate needs a paid data feed. Cached here and at Vercel's edge for 30 minutes.
-const TTL = 30 * 60_000;
-let cache = null;
-
-const SOURCES = [
-  { name: 'exchangerate.fun', url: 'https://api.exchangerate.fun/latest?base=USD', site: 'https://exchangerate.fun',
-    read: (j) => ({ rate: j?.rates?.EGP, updated: j?.timestamp && j.timestamp * 1000 }) },
-  { name: 'ExchangeRate-API', url: 'https://open.er-api.com/v6/latest/USD', site: 'https://www.exchangerate-api.com',
-    read: (j) => ({ rate: j?.rates?.EGP, updated: j?.time_last_update_unix && j.time_last_update_unix * 1000 }) },
-];
-
-async function fetchRate() {
-  for (const s of SOURCES) {
-    try {
-      const r = await fetch(s.url, { signal: AbortSignal.timeout(4000) });
-      if (!r.ok) continue;
-      const { rate, updated } = s.read(await r.json());
-      if (typeof rate === 'number' && rate > 1 && rate < 10_000) {
-        return { rate, updated: new Date(updated || Date.now()).toISOString(), source: s.name, sourceUrl: s.site };
-      }
-    } catch { /* try the next source */ }
-  }
-  return null;
-}
+// USD -> EGP rate for showing EGP next to dollar amounts (team app and landing page). See lib/rate.js.
+import { usdEgp } from '../lib/rate.js';
 
 export default {
   async fetch() {
-    if (!cache || Date.now() - cache.at > TTL) {
-      const fresh = await fetchRate();
-      if (fresh) cache = { at: Date.now(), data: fresh };
-    }
-    if (!cache) return Response.json({ ok: false }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
-    return Response.json({ ok: true, ...cache.data }, {
+    const data = await usdEgp();
+    if (!data) return Response.json({ ok: false }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+    return Response.json({ ok: true, ...data }, {
       headers: { 'Cache-Control': 'public, max-age=300, s-maxage=1800, stale-while-revalidate=3600' },
     });
   },

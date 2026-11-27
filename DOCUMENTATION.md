@@ -223,6 +223,7 @@ Amounts are stored and entered in the currency set in Home → Settings (USD by 
 
 - The rate comes from `/api/rate` (`api/rate.js`): exchangerate.fun (updated hourly, free, no key), with ExchangeRate-API (updated daily, free, attribution shown) as a backup. It is cached for 30 minutes. Free sources are not tick-by-tick; a live market feed needs a paid API key.
 - Home shows the rate in use, when it was updated, and its source.
+- **New transaction** has a USD / EGP switch next to the amount. An amount in the other currency is converted to the company currency on the server at the current rate (shown as a preview while typing). The transaction keeps what was typed and the rate used, and the history shows them ("EGP 5,000 entered · 1 USD = 48.67 EGP"). If no rate can be loaded, such an entry is refused with a message; entries in the company currency always work.
 - If no rate can be loaded, amounts simply show in USD only.
 
 **Email builder (admin)**
