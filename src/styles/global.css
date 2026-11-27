@@ -64,3 +64,7 @@ details[open] > summary .plus { transform: rotate(45deg); }
 .badge::before { content: ''; width: .5rem; height: .5rem; border-radius: 50%; background: var(--color-mute); }
 .badge-live { color: #5fcf8f; border-color: #5fcf8f; }
 .badge-live::before { background: #5fcf8f; }
+
+/* Email builder tab */
+#main.wide { max-width: 1440px; }
+.email-frame { display: block; width: 100%; height: calc(100vh - 190px); min-height: 640px; border: 1px solid var(--color-edge); background: #0c0b09; }

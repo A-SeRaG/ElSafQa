@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "node tools/build-email-builder.mjs && astro build",
     "preview": "astro preview",
     "audit": "npm audit --audit-level=high"
   },
