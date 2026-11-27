@@ -164,17 +164,87 @@ function openTab(name: string) {
 tabs.forEach((t) => t.addEventListener('click', () => openTab(t.dataset.tab!)));
 
 /* ---------- summary + history ---------- */
+/* ---------- Home: clients (wallets grouped by contact number) ---------- */
+type HomeClient = { key: string; name: string; contact: string; pct: number; balance: number; month: number; share: number; collected: number;
+  wallets: { id: number; name: string; balance: number; month: number }[] };
+type HomeClients = { month: string; added: number; items: HomeClient[] };
+const tone = (n: number) => (n > 0 ? 'pos' : n < 0 ? 'neg' : 'text-ivory');
+const sgn = (n: number) => `${n < 0 ? '−' : n > 0 ? '+' : ''}${fmt(Math.abs(n))}`;
+function stat(label: string, value: string, cls = 'text-ivory') {
+  const s = h('span', '', `${label} `); s.append(h('b', `font-semibold tabular-nums ${cls}`, value)); return s;
+}
+function homeClientCard(c: HomeClient) {
+  const card = h('article', 'space-y-3 border border-edge bg-coal p-5');
+  const head = h('div', 'flex flex-wrap items-start justify-between gap-3');
+  const who = h('div');
+  who.append(h('h3', 'text-lg font-semibold', c.name));
+  who.append(h('p', 'text-sm text-mute', [c.contact || 'No contact number', `${c.wallets.length} wallet${c.wallets.length === 1 ? '' : 's'}`].join(' · ')));
+  const bal = h('div', 'text-end');
+  bal.append(h('p', 'text-xs uppercase tracking-widest text-mute', 'All wallets'), bigMoney(c.balance, 'font-display text-2xl font-extrabold text-gold tabular-nums'));
+  head.append(who, bal);
+
+  const line = h('p', 'flex flex-wrap gap-x-6 gap-y-1 text-sm text-mute');
+  line.append(stat('Profit this month', sgn(c.month), tone(c.month)));
+  if (c.pct > 0) line.append(stat('Company share so far', fmt(c.share), 'text-gold'));
+  if (c.collected > 0) line.append(stat('Collected to date', fmt(c.collected)));
+
+  // Share % form
+  const f = h('form', 'flex flex-wrap items-center gap-3 border-t border-edge pt-3 text-sm');
+  const lab = h('label', 'text-mute', 'Company share of monthly profit');
+  const inp = h('input', 'field w-24'); inp.type = 'number'; inp.min = '0'; inp.max = '100'; inp.step = '0.01'; inp.required = true;
+  inp.value = String(c.pct); inp.id = `share-${c.key}`; lab.htmlFor = inp.id;
+  inp.style.width = '6rem'; inp.style.paddingBlock = '.5rem';
+  const pctSign = h('span', 'text-mute', '%');
+  const save = h('button', 'font-semibold text-gold hover:text-ivory', 'Save'); save.type = 'submit';
+  const status = h('span', 'min-h-5');
+  f.append(lab, inp, pctSign, save, status);
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!f.reportValidity()) return;
+    try { await api(`client-shares/${c.key}`, 'PUT', { pct: Number(inp.value) }); await refreshSummary(); }
+    catch (err) { report(err, status); }
+  });
+
+  // Each wallet of this client
+  const list = h('ul', 'divide-y divide-edge border-t border-edge text-sm');
+  for (const w of c.wallets) {
+    const li = h('li', 'flex flex-wrap items-baseline justify-between gap-3 py-2');
+    li.append(h('span', 'font-semibold', w.name));
+    const nums = h('span', 'flex flex-wrap gap-x-5 text-mute');
+    nums.append(stat('Balance', fmt(w.balance)), stat('This month', sgn(w.month), tone(w.month)));
+    li.append(nums);
+    list.append(li);
+  }
+  card.append(head, line, list, f);
+  return card;
+}
+function renderHomeClients(d: HomeClients) {
+  $('#hc-list').replaceChildren(...d.items.map(homeClientCard));
+  $('#hc-empty').hidden = d.items.length > 0;
+  const sum = (k: 'balance' | 'month' | 'share') => d.items.reduce((s, c) => s + c[k], 0);
+  const month = sum('month');
+  $('#hc-totals').replaceChildren(
+    stat('All wallets', fmt(sum('balance')), 'text-gold'),
+    stat('Profit this month', sgn(month), tone(month)),
+    stat('Company share so far', fmt(sum('share'))),
+  );
+}
+
 async function refreshSummary() {
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1), to = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   try {
     // The three requests go out together instead of one after another.
     txOffset = 0;
-    const [s, p, tx] = await Promise.all([
+    const [s, p, tx, hc] = await Promise.all([
       api(`summary?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`),
       api<{ opening: number; points: Point[] }>('progress'),
       fetchTx(),
+      api<HomeClients>('home-clients'),
     ]);
+    // A month just ended and client shares were added: load again so capital and history include them.
+    if (hc.added > 0) return refreshSummary();
+    renderHomeClients(hc);
     currency = s.currency;
     $('#capital').textContent = usd(s.capital);
     const e = egp(s.capital);
