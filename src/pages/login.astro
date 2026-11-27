@@ -52,10 +52,10 @@ import { SITE_NAME } from '../config';
         </div>
       </div>
       <div class="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-5" role="tablist" aria-label="Finance sections">
-        <button class="tab" role="tab" id="tab-summary" data-tab="summary" aria-controls="panel-summary" aria-selected="true">Summary</button>
+        <button class="tab" role="tab" id="tab-summary" data-tab="summary" aria-controls="panel-summary" aria-selected="true">Home</button>
         <button class="tab" role="tab" id="tab-new" data-tab="new" aria-controls="panel-new" aria-selected="false">New transaction</button>
         <button class="tab" role="tab" id="tab-staff" data-tab="staff" aria-controls="panel-staff" aria-selected="false">Staff</button>
-        <button class="tab" role="tab" id="tab-clients" data-tab="clients" aria-controls="panel-clients" aria-selected="false">Clients</button>
+        <button class="tab" role="tab" id="tab-clients" data-tab="clients" aria-controls="panel-clients" aria-selected="false">Wallets</button>
         <button class="tab" role="tab" id="tab-email" data-tab="email" aria-controls="panel-email" aria-selected="false">Email builder</button>
         <!-- Staff accounts see only these three -->
         <button class="tab" role="tab" id="tab-me" data-tab="me" data-staff aria-controls="panel-me" aria-selected="false" hidden>Profile</button>
@@ -75,6 +75,8 @@ import { SITE_NAME } from '../config';
             <button id="settings-toggle" type="button" class="text-sm text-gold hover:text-ivory">Settings</button>
           </div>
           <p id="capital" class="mt-2 font-display text-4xl font-extrabold text-gold tabular-nums sm:text-6xl">&ndash;</p>
+          <p id="capital-egp" class="mt-1 text-lg font-semibold text-ivory tabular-nums"></p>
+          <p id="rate-line" class="mt-1 text-xs text-mute"></p>
           <p class="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-mute">
             <span>Expenses <b id="m-expenses" class="font-semibold text-ivory tabular-nums">&ndash;</b></span>
             <span>Revenue <b id="m-revenue" class="font-semibold text-ivory tabular-nums">&ndash;</b></span>
@@ -262,20 +264,20 @@ import { SITE_NAME } from '../config';
       <!-- 4. Clients -->
       <section id="panel-clients" role="tabpanel" aria-labelledby="tab-clients" hidden>
         <div class="flex flex-wrap items-end justify-between gap-4">
-          <h2 class="text-xl font-semibold">Clients</h2>
-          <p class="text-sm text-mute">Total in client wallets <b id="clients-total" class="font-semibold text-ivory tabular-nums">&ndash;</b></p>
+          <h2 class="text-xl font-semibold">Wallets</h2>
+          <p class="text-sm text-mute">Total in all wallets <b id="clients-total" class="font-semibold text-ivory tabular-nums">&ndash;</b></p>
         </div>
         <div id="client-list" class="mt-6 grid gap-5 md:grid-cols-2"></div>
-        <p id="client-empty" class="mt-6 text-sm text-mute" hidden>No clients yet. Add the first one below.</p>
+        <p id="client-empty" class="mt-6 text-sm text-mute" hidden>No wallets yet. Add the first one below.</p>
 
         <form id="client-form" class="mt-10 grid gap-5 border border-edge bg-coal p-6 sm:grid-cols-2 sm:p-8">
-          <h3 class="text-lg font-semibold sm:col-span-2">Add client</h3>
+          <h3 class="text-lg font-semibold sm:col-span-2">Add wallet</h3>
           <div><label for="c-name" class="mb-1 block text-sm text-mute">Name</label><input class="field" id="c-name" name="name" required maxlength="80" /></div>
           <div><label for="c-contact" class="mb-1 block text-sm text-mute">Contact (Telegram, phone; optional)</label><input class="field" id="c-contact" name="contact" maxlength="120" /></div>
           <div><label for="c-trader" class="mb-1 block text-sm text-mute">Trader</label><input class="field" id="c-trader" name="trader" maxlength="80" list="trader-names" /></div>
           <div><label for="c-deposit" class="mb-1 block text-sm text-mute">First deposit (optional)</label><input class="field" id="c-deposit" name="deposit" type="number" min="0" step="0.01" inputmode="decimal" /></div>
           <label class="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" name="live" class="h-4 w-4 accent-gold" checked /> Trader is live on this account now</label>
-          <button type="submit" class="btn btn-gold sm:col-span-2">Add client</button>
+          <button type="submit" class="btn btn-gold sm:col-span-2">Add wallet</button>
         </form>
         <datalist id="trader-names"></datalist>
       </section>

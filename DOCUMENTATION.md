@@ -212,10 +212,18 @@ A private page for the company's finances. The site header has a "Log in" button
 
 **Tabs**
 
-1. **Summary**: company capital (opening capital + all money in − all money out), then this month's expenses, revenue and profit on a smaller line, then a "Capital over time" line chart (capital at the end of each day, hover or touch for the exact value), then the transaction history (newest first, delete with a second confirming click). "Settings" sets the opening capital and the currency code (default `USD`).
+1. **Home** (was *Summary*): company capital (opening capital + all money in − all money out), then this month's expenses, revenue and profit on a smaller line, then a "Capital over time" line chart (capital at the end of each day, hover or touch for the exact value), then the transaction history (newest first, delete with a second confirming click). "Settings" sets the opening capital and the currency code (default `USD`).
 2. **New transaction**: in or out, amount, date and time, what it is for, optional note.
 3. **Staff**: add employees with a job title, monthly salary and start date. Each card shows, for the selected month: targets achieved %, followed instructions %, bonus, deduction, an evaluation note and the net pay. Each card also has a **Deals** block: every deal with what it earned or lost, the running total, and a "Deals profit / loss over time" chart. A staff member whose name is set as the trader on one or more clients additionally shows how many of those clients are live and the total they manage. "Record salary payment" writes the net pay as an "out" transaction, once per employee per month.
-4. **Clients**: add clients with a contact, an assigned trader and an optional first deposit. Each card shows the client's wallet (net deposits + trading profit − trading loss), the trader with a Live / Paused status you can switch, and the client's history of deposits, withdrawals, profits and losses. Each card also has a "Wallet over time" chart. Client wallets are client money: they are tracked separately and do **not** change the company capital.
+4. **Wallets** (was *Clients*): add clients with a contact, an assigned trader and an optional first deposit. Each card shows the client's wallet (net deposits + trading profit − trading loss), the trader with a Live / Paused status you can switch, and the client's history of deposits, withdrawals, profits and losses. Each card also has a "Wallet over time" chart. Client wallets are client money: they are tracked separately and do **not** change the company capital.
+
+**USD and EGP**
+
+Amounts are stored and entered in the currency set in Home → Settings (USD by default). While that is USD, every amount in the app also shows its value in Egyptian pounds, and the channel prices on the landing page show "≈ EGP …" under them.
+
+- The rate comes from `/api/rate` (`api/rate.js`): exchangerate.fun (updated hourly, free, no key), with ExchangeRate-API (updated daily, free, attribution shown) as a backup. It is cached for 30 minutes. Free sources are not tick-by-tick; a live market feed needs a paid API key.
+- Home shows the rate in use, when it was updated, and its source.
+- If no rate can be loaded, amounts simply show in USD only.
 
 **Email builder (admin)**
 

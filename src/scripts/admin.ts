@@ -32,7 +32,7 @@ const ERRORS: Record<string, string> = {
   email_taken: 'That sign-in email is already used by another account.',
   weak_password: 'A sign-in password needs an email and at least 8 characters.',
   forbidden: 'Your account is not allowed to do that.',
-  stock_not_on_wallet: "That stock isn't enabled on this wallet. The admin sets each wallet's stocks in the Clients tab.",
+  stock_not_on_wallet: "That stock isn't enabled on this wallet. The admin sets each wallet's stocks in the Wallets tab.",
 };
 const explain = (code: string) => ERRORS[code] ?? 'Something went wrong. Please try again.';
 
@@ -72,10 +72,32 @@ function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = ''): 
   if (text) el.textContent = text;
   return el;
 }
-function fmt(n: number) {
+function usd(n: number) {
   try { return new Intl.NumberFormat('en', { style: 'currency', currency }).format(n); }
   catch { return `${n.toFixed(2)} ${currency}`; }
 }
+// USD -> EGP rate from /api/rate. While amounts are kept in USD, each one also shows its EGP value.
+type Rate = { rate: number; updated: string; source: string; sourceUrl: string };
+let usdEgp: Rate | null = null;
+const egpFormat = new Intl.NumberFormat('en', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 });
+const egp = (n: number) => (currency === 'USD' && usdEgp && n !== 0 ? egpFormat.format(n * usdEgp.rate) : '');
+function fmt(n: number) { const e = egp(n); return e ? `${usd(n)} (${e})` : usd(n); }
+// A big amount: the USD figure, with its EGP value on a small line underneath.
+function bigMoney(n: number, cls: string) {
+  const wrap = h('div');
+  wrap.append(h('p', cls, usd(n)));
+  const e = egp(n);
+  if (e) wrap.append(h('p', 'text-xs text-mute tabular-nums', `≈ ${e}`));
+  return wrap;
+}
+async function loadRate() {
+  try {
+    const r = await fetch('/api/rate', { signal: AbortSignal.timeout(6000) });
+    const j = await r.json();
+    if (j.ok) usdEgp = j;
+  } catch { /* amounts show in USD only until the rate is back */ }
+}
+setInterval(loadRate, 30 * 60_000);
 const pad = (n: number) => String(n).padStart(2, '0');
 const localInput = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const monthName = (m: string) => new Date(`${m}-01T12:00:00`).toLocaleString('en', { month: 'long', year: 'numeric' });
@@ -105,6 +127,7 @@ function confirmClick(btn: HTMLButtonElement, action: () => void) {
 /* ---------- views ---------- */
 function showLogin() { appView.hidden = true; loginView.hidden = false; $<HTMLInputElement>('#email').focus(); }
 async function showApp(as: 'admin' | 'staff') {
+  await loadRate();
   role = as;
   loginView.hidden = true; appView.hidden = false;
   $<HTMLInputElement>('#at').value = localInput(new Date());
@@ -148,7 +171,15 @@ async function refreshSummary() {
       fetchTx(),
     ]);
     currency = s.currency;
-    $('#capital').textContent = fmt(s.capital);
+    $('#capital').textContent = usd(s.capital);
+    const e = egp(s.capital);
+    $('#capital-egp').textContent = e ? `≈ ${e}` : '';
+    $('#rate-line').replaceChildren();
+    if (usdEgp && currency === 'USD') {
+      const when = new Date(usdEgp.updated).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      const src = h('a', 'underline hover:text-gold', usdEgp.source); src.setAttribute('href', usdEgp.sourceUrl); src.setAttribute('rel', 'noopener noreferrer');
+      $('#rate-line').append(`1 USD = ${usdEgp.rate.toFixed(2)} EGP · updated ${when} · rates by `, src);
+    }
     $('#m-expenses').textContent = fmt(s.expenses);
     $('#m-revenue').textContent = fmt(s.revenue);
     const profit = $('#m-profit');
@@ -176,7 +207,12 @@ function renderTx(data: { items: Tx[]; more: boolean }) {
       h('td', 'whitespace-nowrap px-4 py-3 text-mute', fmtDate(t.at)),
       h('td', 'px-4 py-3 font-semibold', t.purpose),
       h('td', 'max-w-xs px-4 py-3 text-mute', t.note),
-      h('td', `whitespace-nowrap px-4 py-3 text-end font-semibold tabular-nums ${t.kind === 'in' ? 'pos' : 'neg'}`, `${t.kind === 'in' ? '+' : '−'}${fmt(t.amount)}`),
+      (() => {
+        const td = h('td', `whitespace-nowrap px-4 py-3 text-end font-semibold tabular-nums ${t.kind === 'in' ? 'pos' : 'neg'}`, `${t.kind === 'in' ? '+' : '−'}${usd(t.amount)}`);
+        const e = egp(t.amount);
+        if (e) td.append(h('div', 'text-xs font-normal text-mute', e));
+        return td;
+      })(),
     );
     const del = h('button', 'text-xs text-mute hover:text-signal', 'Delete');
     del.type = 'button';
@@ -268,7 +304,7 @@ function staffCard(s: Staff, month: string) {
   who.append(h('h3', 'text-lg font-semibold', s.name), h('p', 'text-sm text-gold', s.title));
   if (s.startDate) who.append(h('p', 'text-xs text-mute', `Since ${s.startDate}`));
   const pay = h('div', 'text-end');
-  pay.append(h('p', 'text-xs uppercase tracking-widest text-mute', 'Net pay'), h('p', 'font-display text-xl font-extrabold tabular-nums', fmt(s.net)),
+  pay.append(h('p', 'text-xs uppercase tracking-widest text-mute', 'Net pay'), bigMoney(s.net, 'font-display text-xl font-extrabold tabular-nums'),
     h('p', 'text-xs text-mute', s.payType === 'commission' ? `${s.commissionPct}% of profit` : `Salary ${fmt(s.salary)}`));
   head.append(who, pay);
 
@@ -285,7 +321,7 @@ function staffCard(s: Staff, month: string) {
     const line = h('div', 'flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-edge pt-4 text-sm text-mute');
     const managing = h('span', '', 'Managing '); managing.append(h('b', 'font-semibold text-ivory tabular-nums', fmt(t.managed)));
     line.append(h('span', `badge ${t.live ? 'badge-live' : ''}`, t.live ? `Live on ${t.live} of ${t.clients}` : 'Paused'),
-      h('span', '', `${t.clients} client${t.clients === 1 ? '' : 's'}`), managing);
+      h('span', '', `${t.clients} wallet${t.clients === 1 ? '' : 's'}`), managing);
     card.append(line);
   }
 
@@ -544,7 +580,7 @@ function walletCard(w: Wallet) {
   const who = h('div');
   who.append(h('h3', 'text-lg font-semibold', w.name), h('span', `badge mt-2 ${w.live ? 'badge-live' : ''}`, w.live ? 'Live' : 'Paused'));
   const bal = h('div', 'text-end');
-  bal.append(h('p', 'text-xs uppercase tracking-widest text-mute', 'Wallet'), h('p', 'font-display text-2xl font-extrabold text-gold tabular-nums', fmt(w.wallet)));
+  bal.append(h('p', 'text-xs uppercase tracking-widest text-mute', 'Wallet'), bigMoney(w.wallet, 'font-display text-2xl font-extrabold text-gold tabular-nums'));
   head.append(who, bal);
 
   const split = h('p', 'flex flex-wrap gap-x-6 gap-y-1 text-sm text-mute');
@@ -816,7 +852,7 @@ function clientCard(c: Client) {
   who.append(h('h3', 'text-lg font-semibold', c.name));
   if (c.contact) who.append(h('p', 'text-sm text-mute', c.contact));
   const wallet = h('div', 'text-end');
-  wallet.append(h('p', 'text-xs uppercase tracking-widest text-mute', 'Wallet'), h('p', 'font-display text-2xl font-extrabold text-gold tabular-nums', fmt(c.wallet)));
+  wallet.append(h('p', 'text-xs uppercase tracking-widest text-mute', 'Wallet'), bigMoney(c.wallet, 'font-display text-2xl font-extrabold text-gold tabular-nums'));
   head.append(who, wallet);
 
   const split = h('p', 'flex flex-wrap gap-x-6 gap-y-1 text-sm text-mute');
@@ -866,7 +902,7 @@ function clientCard(c: Client) {
 
   // Edit / remove
   const edit = h('details', 'border-t border-edge pt-4 text-sm');
-  edit.append(h('summary', 'text-mute hover:text-ivory', 'Edit client or change trader'));
+  edit.append(h('summary', 'text-mute hover:text-ivory', 'Edit wallet or change trader'));
   const df = h('form', 'mt-3 grid grid-cols-2 gap-3');
   const text = (label: string, name: string, value: string, required = false) => {
     const w = h('label', 'block text-sm text-mute', label);
@@ -882,7 +918,7 @@ function clientCard(c: Client) {
     const fd = new FormData(df);
     update({ name: String(fd.get('name')), contact: String(fd.get('contact')), trader: String(fd.get('trader')) });
   });
-  const remove = h('button', 'mt-4 text-mute hover:text-signal', 'Remove client and their history');
+  const remove = h('button', 'mt-4 text-mute hover:text-signal', 'Remove wallet and its history');
   remove.type = 'button';
   confirmClick(remove, () => run(() => api(`clients/${c.id}`, 'DELETE')));
   edit.append(df, remove);

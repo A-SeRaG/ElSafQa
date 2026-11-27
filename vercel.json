@@ -35,7 +35,7 @@
       ]
     },
     {
-      "source": "/api/(.*)",
+      "source": "/api/((?!rate$).*)",
       "headers": [{ "key": "Cache-Control", "value": "no-store" }]
     },
     {
